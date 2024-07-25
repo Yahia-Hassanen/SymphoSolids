@@ -21,6 +21,7 @@ BLEMIDI_CREATE_INSTANCE(MIDI_DEVICE_NAME, MIDI);
 
 String receivedData;
 bool processDataFlag = false; // Flag to indicate processing of received data
+bool processTest= false; // Flag to indicate test status
 
 // BLE Service and Characteristics
 NimBLEServer *pServer;
@@ -64,8 +65,12 @@ class MyCallbacks : public NimBLECharacteristicCallbacks {
         Serial.println(receivedData);
 
         if (receivedData.equals("Record")) {
-            processDataFlag = true; // Set flag to process data
-        } else if (receivedData.equals("Disconnect")) {
+          processDataFlag = true; // Set flag to process data
+        }
+        if (receivedData.equals("Test")){
+          processTest = true;
+        }
+        else if (receivedData.equals("Disconnect")) {
             disconnect();
             receivedData = "";  // Reset received data after processing
             processDataFlag = false; // Reset flag
@@ -146,6 +151,11 @@ void loop() {
         sendAccelData(); // Send accelerometer data to the client
         processDataFlag = false; // Reset flag after processing
     }
+    if (processTest){
+      sendDot();
+      processTest = false; // Reset flag after processing
+
+    }
 }
 
 void disconnect() {
@@ -180,4 +190,22 @@ void sendAccelData() {
     Serial.print(accelY);
     Serial.print(", Z=");
     Serial.println(accelZ);
+}
+
+void sendDot() {
+    float accelX, accelY, accelZ;
+    StickCP2.Imu.getAccelData(&accelX, &accelY, &accelZ);
+
+    // Calculate the dot product with the unit vector (0, 0, 1)
+    float dotProduct = accelZ; // Since the unit vector is (0, 0, 1), the dot product is simply accelZ
+
+    byte data[4]; // 4 bytes for the float
+    memcpy(data, &dotProduct, sizeof(float));
+
+    // Send the byte array to the BLE characteristic
+    pTxCharacteristic->setValue(data, sizeof(data));
+    pTxCharacteristic->notify(); // Notify client about the new data
+    
+    Serial.print("Sent dot product: ");
+    Serial.println(dotProduct);
 }
