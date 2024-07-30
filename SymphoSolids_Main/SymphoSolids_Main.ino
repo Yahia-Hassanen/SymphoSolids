@@ -4,347 +4,302 @@ Author: Yahia Hassanen
 Date: Summer 2024
 */
 
-
-#include <M5StickCPlus2.h>
+//  HEADER
 #include <BLEMIDI_Transport.h>
+#include <M5StickCPlus2.h>
 #include <hardware/BLEMIDI_ESP32_NimBLE.h>
-#include <string.h>
-#include <stdio.h>
 
-
-String receivedData;
-char str1[] = "Q";
-
-
-// BLE UUIDs
-#define SERVICE_UUID           "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
-#define CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
-#define CHARACTERISTIC_UUID_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
-
-
-// BLE Service and Characteristics
-NimBLEServer *pServer;
-NimBLEService *pService;
-NimBLECharacteristic *pTxCharacteristic;
-NimBLECharacteristic *pRxCharacteristic;
-
-
-// Track connection state
-bool isConnected = false;
-
-
-// MIDI Definitions
 #define MIDI_CHANNEL_NO 1
-#define MIDI_DEVICE_NAME "M5SStickCPlus_1"
-BLEMIDI_CREATE_INSTANCE(MIDI_DEVICE_NAME, MIDI);
+#define MIDI_DEVICE_NAME "DICE"
 
+// Menu variables
+String menuItems[] = {"Normal Mode", "Musical Mode", "Info"};
+int currentSelection = 0;
+const int totalItems = sizeof(menuItems) / sizeof(menuItems[0]);
+
+// BLEMIDI_CREATE_DEFAULT_INSTANCE()
+BLEMIDI_CREATE_INSTANCE(MIDI_DEVICE_NAME, MIDI);
 
 // BLE connect
 bool IsConnected = false;
 
+// INIT ACCELEROMETER
+float accX = 0.0F;
+float accY = 0.0F;
+float accZ = 0.0F;
 
+// pitch of note
 #define INIT_NOTE_PITCH 30
 int CurrentNotePitch = INIT_NOTE_PITCH;
-
+#define PIN_LED 10
 
 int delayValue = 100; // Initial delay value
 int minDelay = 100;
 int maxDelay = 1500;
 
-
-// Function prototypes
-void handleM();
-void handleQ();
-void disconnect();
-void onBLEWritten(NimBLECharacteristic *pCharacteristic);
-void Normal_Mode();
-void Musical_Mode();
-void registerAccelData();
-
-
-float accX = 0.0F;
-float accY = 0.0F;
-float accZ = 0.0F;
-
-
+// ====================================================================================
 // Event handlers for incoming MIDI messages
+// ====================================================================================
+
+// Device connected
 void OnConnected() {
-    IsConnected = true;
-    StickCP2.Lcd.fillScreen(BLACK);
-    StickCP2.Lcd.setCursor(0, 0);
-    StickCP2.Lcd.println("Connected successfully");
-    Serial.println("Connected successfully");
+  IsConnected = true;
 }
 
-
+// Device disconnected
 void OnDisconnected() {
-    IsConnected = false;
-    NimBLEDevice::startAdvertising();
-    StickCP2.Lcd.fillScreen(BLACK);
-    StickCP2.Lcd.setCursor(0, 0);
-    StickCP2.Lcd.println("Waiting for connections...");
-    Serial.println("Disconnected, waiting for connections...");
+  IsConnected = false;
 }
 
-
+// Received note on
 void OnNoteOn(byte channel, byte note, byte velocity) {}
 
-
+// Received note off
 void OnNoteOff(byte channel, byte note, byte velocity) {}
 
-
-// BLE data received event handler
-class MyCallbacks : public NimBLECharacteristicCallbacks {
-    void onWrite(NimBLECharacteristic *pCharacteristic) {
-        std::string value = pCharacteristic->getValue();
-        receivedData = String(value.c_str()); // Convert std::string to String
-       
-        Serial.print("Received data: ");
-        Serial.println(receivedData);
-
-
-        // Print length of receivedData
-        size_t length = receivedData.length(); // Use length() for String objects
-        Serial.print("Length of receivedData: ");
-        Serial.println(length);
-
-
-        // Print ASCII values of receivedData
-        Serial.println("ASCII values of receivedData:");
-        for (size_t i = 0; i < length; i++) {
-            Serial.print((int)receivedData.charAt(i));
-            Serial.print(" ");
-        }
-        Serial.println(); // Print a new line after ASCII values
+// Define Normal_Mode (sans music)
+void Normal_Mode() {
+  StickCP2.Lcd.fillScreen(BLACK);
+  
+  while (true) {
+    StickCP2.Imu.getAccelData(&accX, &accY, &accZ);
+    StickCP2.Lcd.fillScreen(BLACK);  // Clear the area where the text will be printed
+    StickCP2.Lcd.setCursor(10, 50);
+    StickCP2.Lcd.print("Normal Mode");
+    if (accY > 0.8) {
+      StickCP2.Lcd.setCursor(30, 90);
+      StickCP2.Lcd.setTextColor(MAGENTA);
+      StickCP2.Lcd.setTextSize(2);
+      StickCP2.Lcd.println("Face 1 is up");
+    } else if (accY < -0.8) {
+      StickCP2.Lcd.setCursor(30, 90);
+      StickCP2.Lcd.setTextColor(MAGENTA);
+      StickCP2.Lcd.setTextSize(2);
+      StickCP2.Lcd.println("Face 2 is up");
+    } else if (accX > 0.8) {
+      StickCP2.Lcd.setCursor(30, 90);
+      StickCP2.Lcd.setTextColor(MAGENTA);
+      StickCP2.Lcd.setTextSize(2);
+      StickCP2.Lcd.println("Face 3 is up");
+    } else if (accX < -0.8) {
+      StickCP2.Lcd.setCursor(30, 90);
+      StickCP2.Lcd.setTextColor(MAGENTA);
+      StickCP2.Lcd.setTextSize(2);
+      StickCP2.Lcd.println("Face 4 is up");
+    } else if (accZ > 0.8) {
+      StickCP2.Lcd.setCursor(30, 90);
+      StickCP2.Lcd.setTextColor(MAGENTA);
+      StickCP2.Lcd.setTextSize(2);
+      StickCP2.Lcd.println("Face 5 is up");
+    } else if (accZ < -0.8) {
+      StickCP2.Lcd.setCursor(30, 90);
+      StickCP2.Lcd.setTextColor(MAGENTA);
+      StickCP2.Lcd.setTextSize(2);
+      StickCP2.Lcd.println("Face 6 is up");
+    } else {
+      StickCP2.Lcd.setCursor(30, 90);
+      StickCP2.Lcd.setTextColor(MAGENTA);
+      StickCP2.Lcd.setTextSize(2);
+      StickCP2.Lcd.println("Undetermined");
     }
-};
 
+    StickCP2.Lcd.setTextColor(TFT_WHITE); // Reset text color
 
-class ServerCallbacks : public NimBLEServerCallbacks {
-    void onConnect(NimBLEServer* pServer) {
-        isConnected = true;
-        OnConnected();  // Notify your application logic
+    StickCP2.update();
+    if (StickCP2.BtnB.wasPressed()) {
+      displayMenu();
+      break;
     }
-
-
-    void onDisconnect(NimBLEServer* pServer) {
-        isConnected = false;
-        OnDisconnected();  // Notify your application logic
-    }
-};
-
-
-// Setup function
-void setup() {
-    // Initialize Serial for debugging
-    Serial.begin(115200);
-
-
-    // Initialize M5StickCPlus
-    StickCP2.begin();
-    StickCP2.Lcd.setRotation(3);
-    StickCP2.Lcd.fillScreen(BLACK);
-    StickCP2.Lcd.setCursor(0, 0);
-    StickCP2.Imu.init();  // INIT IMU
-
-
-    MIDI.begin();
-    // BLE connect Callback
-    BLEMIDI.setHandleConnected(OnConnected);
-   
-    // BLE disconnect Callback
-    BLEMIDI.setHandleDisconnected(OnDisconnected);
-
-
-    // NoteON Callback
-    MIDI.setHandleNoteOn(OnNoteOn);
-    // NoteOff Callback
-    MIDI.setHandleNoteOff(OnNoteOff);
-
-
-
-
-    // Initialize BLE
-    NimBLEDevice::init("M5StickCPlus_1");
-
-
-    // Create BLE Server
-    pServer = NimBLEDevice::createServer();
-    pServer->setCallbacks(new ServerCallbacks());
-
-
-    // Create BLE Service
-    pService = pServer->createService(SERVICE_UUID);
-
-
-    // Create BLE Characteristics
-    pTxCharacteristic = pService->createCharacteristic(
-        CHARACTERISTIC_UUID_TX,
-        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY
-    );
-
-
-    pRxCharacteristic = pService->createCharacteristic(
-        CHARACTERISTIC_UUID_RX,
-        NIMBLE_PROPERTY::WRITE
-    );
-
-
-    // Set the event handler for received data
-    pRxCharacteristic->setCallbacks(new MyCallbacks());
-
-
-    // Start the service
-    pService->start();
-
-
-    // Start advertising
-    NimBLEAdvertising *pAdvertising = NimBLEDevice::getAdvertising();
-    pAdvertising->addServiceUUID(SERVICE_UUID);
-    pAdvertising->start();
-
-
-    // Initialize MIDI
-    MIDI.begin();
-    BLEMIDI.setHandleConnected(OnConnected);
-    BLEMIDI.setHandleDisconnected(OnDisconnected);
-
-
-    StickCP2.Lcd.println("Waiting for connections...");
-    Serial.println("Setup complete, waiting for connections...");
+    delay(1000); // Adjust delay as needed
+  }
 }
-
-
-// Loop function
-bool inMusicalMode = false;
-
-
-void loop() {
-    StickCP2.update();  // Update M5 state
-    Serial.println("Loop execution");
-    delay(2000);
-
-
-    if (receivedData.length() > 0) {
-        Serial.print("Processing received data: ");
-        Serial.println(receivedData);
-
-
-        if (receivedData.equals("RegisterAccel")) {
-            registerAccelData();
-        } else if (receivedData.equals("Music")) {
-            inMusicalMode = true;
-            Musical_Mode();
-        } else if (receivedData.equals("Q")) {
-            StickCP2.Lcd.fillScreen(BLACK);
-            StickCP2.Lcd.setCursor(30, 90);
-            StickCP2.Lcd.setTextColor(WHITE);
-            StickCP2.Lcd.setTextSize(1);
-            StickCP2.Lcd.println("QUIET");
-            Serial.println("Entered Quiet mode");
-        } else if (receivedData.equals("Disconnect")) {
-            disconnect();
-        } else if (receivedData.equals("ExitMusicMode")) {
-            inMusicalMode = false;
-        }
-        receivedData = "";  // Reset received data after processing
-    }
-}
-
-
-void registerAccelData() {
-    // Implement your function to register accelerometer data
-    Serial.println("Registered accelerometer data");
-}
-
-
-void disconnect() {
-    NimBLEDevice::stopAdvertising();
-    isConnected = false;
-    receivedData = ""; // Reset received data
-    StickCP2.Lcd.fillScreen(BLACK);
-    StickCP2.Lcd.setCursor(0, 0);
-    StickCP2.Lcd.setTextColor(WHITE);
-    StickCP2.Lcd.setTextSize(1);
-    StickCP2.Lcd.println("Waiting for connections...");
-    StickCP2.Lcd.println("Disconnected");
-    Serial.println("Disconnected from device");
-}
-
 
 void Musical_Mode() {
-    StickCP2.Lcd.fillScreen(BLACK);
-    Serial.println("Entered Musical mode");
-    while (inMusicalMode) {
-        StickCP2.Imu.getAccelData(&accX, &accY, &accZ);
-        StickCP2.Lcd.fillScreen(BLACK);
-        byte note = 0;
-        StickCP2.Lcd.setCursor(10, 50);
-        StickCP2.Lcd.print("Musical Mode");
-        if (accY > 0.8) {
-            StickCP2.Lcd.setCursor(30, 90);
-            StickCP2.Lcd.setTextColor(CYAN);
-            StickCP2.Lcd.setTextSize(2);
-            StickCP2.Lcd.println("Note 1");
-            note = 60;
-            delayValue = 100;
-        } else if (accY < -0.8) {
-            StickCP2.Lcd.setCursor(30, 90);
-            StickCP2.Lcd.setTextColor(GREEN);
-            StickCP2.Lcd.setTextSize(2);
-            StickCP2.Lcd.println("Note 2");
-            note = 62;
-            delayValue = 200;
-        } else if (accX > 0.8) {
-            StickCP2.Lcd.setCursor(30, 90);
-            StickCP2.Lcd.setTextColor(YELLOW);
-            StickCP2.Lcd.setTextSize(2);
-            StickCP2.Lcd.println("Note 3");
-            note = 64;
-            delayValue = 300;
-        } else if (accX < -0.8) {
-            StickCP2.Lcd.setCursor(30, 90);
-            StickCP2.Lcd.setTextColor(RED);
-            StickCP2.Lcd.setTextSize(2);
-            StickCP2.Lcd.println("Note 4");
-            note = 65;
-            delayValue = 400;
-        } else if (accZ > 0.8) {
-            StickCP2.Lcd.setCursor(30, 90);
-            StickCP2.Lcd.setTextColor(BLUE);
-            StickCP2.Lcd.setTextSize(2);
-            StickCP2.Lcd.println("Note 5");
-            note = 67;
-            delayValue = 500;
-        } else if (accZ < -0.8) {
-            StickCP2.Lcd.setCursor(30, 90);
-            StickCP2.Lcd.setTextColor(PINK);
-            StickCP2.Lcd.setTextSize(2);
-            StickCP2.Lcd.println("Note 6");
-            note = 69;
-            delayValue = 600;
-        } else {
-            StickCP2.Lcd.setCursor(30, 90);
-            StickCP2.Lcd.setTextColor(MAGENTA);
-            StickCP2.Lcd.setTextSize(2);
-            StickCP2.Lcd.println("No Note");
-            delayValue = 1500;
-        }
-        StickCP2.Lcd.setTextColor(TFT_WHITE); // Reset text color
-       
-        if (note != 0) {
-          MIDI.sendNoteOn(note, 100, MIDI_CHANNEL_NO);
-          delay(delayValue); // Play the note with the current delay
-          MIDI.sendNoteOff(note, 0, MIDI_CHANNEL_NO);
-          }
-        StickCP2.update();
-        if (receivedData.equals("ExitMusicMode")) {
-            inMusicalMode = false;
-            Serial.println("Exited Musical mode");
-            return;
-        }
-        delay(1000); // Adjust delay as needed
+  StickCP2.Lcd.fillScreen(BLACK);
+  
+  
+  while (true) {
+    StickCP2.Imu.getAccelData(&accX, &accY, &accZ);
+    StickCP2.Lcd.fillScreen(BLACK);  // Clear the area where the text will be printed
+    byte note = 0;
+    StickCP2.Lcd.setCursor(10, 50);
+    StickCP2.Lcd.print("Musical Mode");
+
+
+    if (accY > 0.8) {
+      StickCP2.Lcd.setCursor(30, 90);
+      StickCP2.Lcd.setTextColor(MAGENTA);
+      StickCP2.Lcd.setTextSize(2);
+      StickCP2.Lcd.println("Face 1 is up");
+      note = 33; // C3
+    } else if (accY < -0.8) {
+      StickCP2.Lcd.setCursor(30, 90);
+      StickCP2.Lcd.setTextColor(MAGENTA);
+      StickCP2.Lcd.setTextSize(2);
+      StickCP2.Lcd.println("Face 2 is up");
+      note = 35; // D3
+    } else if (accX > 0.8) {
+      StickCP2.Lcd.setCursor(30, 90);
+      StickCP2.Lcd.setTextColor(MAGENTA);
+      StickCP2.Lcd.setTextSize(2);
+      StickCP2.Lcd.println("Face 3 is up");
+      note = 40; // E3
+    } else if (accX < -0.8) {
+      StickCP2.Lcd.setCursor(30, 90);
+      StickCP2.Lcd.setTextColor(YELLOW);
+      StickCP2.Lcd.setTextSize(2);
+      StickCP2.Lcd.println("Face 4 is up");
+      note = 45; // F3
+    } else if (accZ > 0.8) {
+      StickCP2.Lcd.setCursor(30, 90);
+      StickCP2.Lcd.setTextColor(MAGENTA);
+      StickCP2.Lcd.setTextSize(2);
+      StickCP2.Lcd.println("Face 5 is up");
+      note = 50; // G3
+    } else if (accZ < -0.8) {
+      StickCP2.Lcd.setCursor(30, 90);
+      StickCP2.Lcd.setTextColor(MAGENTA);
+      StickCP2.Lcd.setTextSize(2);
+      StickCP2.Lcd.println("Face 6 is up");
+      note = 47; // A3
+    } else {
+      StickCP2.Lcd.setCursor(30, 90);
+      StickCP2.Lcd.setTextColor(MAGENTA);
+      StickCP2.Lcd.setTextSize(2);
+      StickCP2.Lcd.println("Undetermined");
+      note = 0;
     }
+
+    StickCP2.Lcd.setTextColor(TFT_WHITE); // Reset text color
+    
+    if (note != 0) {
+      MIDI.sendNoteOn(note, 100, MIDI_CHANNEL_NO);
+      delay(delayValue); // Play the note with the current delay
+      MIDI.sendNoteOff(note, 0, MIDI_CHANNEL_NO);
+    }
+    StickCP2.update();
+    if (StickCP2.BtnB.wasPressed()) {
+      displayMenu();
+      break;
+    }
+    StickCP2.Lcd.setCursor(12, 30);
+    StickCP2.Lcd.setTextColor(WHITE);
+    StickCP2.Lcd.print("Tempo: ");
+    StickCP2.Lcd.print(delayValue);
+
+      if (StickCP2.BtnA.wasPressed()) {
+      // Increase delay value
+      delayValue += 100;
+      if (delayValue > maxDelay) {
+        delayValue = minDelay; // Wrap around to minimum delay value
+      }
+    }
+    delay(100); // Adjust delay as needed
+  }
 }
 
 
+void setup() {
+  // Initialize M5StickC Plus
+  uint16_t vbat;
+  StickCP2.begin();             // INIT M5StickC Plus
+  Serial.begin(115200);
+  StickCP2.Imu.init();          // INIT IMU
+  StickCP2.Lcd.setRotation(3);  // ROTATE DISPLAY
+  StickCP2.Lcd.fillScreen(BLACK);
+  StickCP2.Lcd.setTextSize(2);
+  
+  
+
+  // INIT MIDI
+  MIDI.begin();
+    
+  // BLE connect Callback
+  BLEMIDI.setHandleConnected(OnConnected);
+    
+  // BLE disconnect Callback
+  BLEMIDI.setHandleDisconnected(OnDisconnected);
+
+  // NoteON Callback
+  MIDI.setHandleNoteOn(OnNoteOn);
+  // NoteOff Callback
+  MIDI.setHandleNoteOff(OnNoteOff);
+  
+}
+
+void loop() {
+  StickCP2.update();
+
+  if (Serial.available()) { // Check if data is available to read
+    String incomingMessage = Serial.readStringUntil('\n'); // Read the incoming data
+    Serial.println("Received: " + incomingMessage); // Echo the received message
+    Serial.println("Hello from M5StickC Plus!");
+    delay(2000); // Delay to avoid spamming the serial monitor
+
+    // Check the incoming message 
+    if (incomingMessage == "Q") {
+      Normal_Mode();    
+      } 
+    else if (incomingMessage == "Music") {
+      Musical_Mode();
+    }
+  }
+  // Check for button press
+  if (StickCP2.BtnA.wasPressed()) {
+    currentSelection = (currentSelection + 1) % totalItems;
+    displayMenu();
+  }
+  if (StickCP2.BtnB.wasPressed()) {
+    selectOption();
+  }
+  
+}
+
+void displayExplanation() {
+  StickCP2.Lcd.fillScreen(BLACK);
+  StickCP2.Lcd.setCursor(10, 20);
+  StickCP2.Lcd.setTextSize(2);
+
+  StickCP2.Lcd.print("Welcome to the");
+  StickCP2.Lcd.print("DICE");
+  StickCP2.Lcd.setCursor(10, 50);
+  StickCP2.Lcd.print("Normal Mode");
+  StickCP2.Lcd.print("sans music");
+
+  StickCP2.Lcd.setCursor(10, 70);
+  StickCP2.Lcd.print("Musical Mode");
+  StickCP2.Lcd.print("Roll the dice, make music");
+  StickCP2.Lcd.setCursor(10, 90);
+}
+
+void displayMenu() {
+  // Clear the screen
+  StickCP2.Lcd.fillScreen(BLACK);
+  
+  // Draw the menu items lower on the screen
+  int startY = 80;  // Adjust this value to lower the starting point of the menu
+  for (int i = 0; i < totalItems; i++) {
+    if (i == currentSelection) {
+      StickCP2.Lcd.setTextColor(GREEN);
+    } else {
+      StickCP2.Lcd.setTextColor(WHITE);
+    }
+    StickCP2.Lcd.setCursor(10, startY + (i * 20));
+    StickCP2.Lcd.print(menuItems[i]);
+  }
+}
+
+void selectOption() {
+  // Execute a different function for each menu option
+  switch (currentSelection) {
+    case 0:
+      Normal_Mode();
+      break;
+    case 1:
+      Musical_Mode();
+      break;
+    case 2:
+      displayExplanation();
+      break;
+  }
+}
