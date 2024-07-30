@@ -6,6 +6,7 @@ import time
 from customtkinter import *
 from customtkinter import filedialog
 import math
+import re
 import itertools
 import threading
 from bleak import BleakClient, BleakScanner
@@ -17,7 +18,7 @@ NOTIFICATION_CHARACTERISTIC_UUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
 
 # GUI Root -----------------------------------------------------------------------------------------------------------
 root = ctk.CTk()
-root.geometry("1020x770")
+root.geometry("1030x770")
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("dark-blue")
 root.title("SymphoSolids Configuration")
@@ -282,11 +283,16 @@ def highlight_closest(refrence_dot):
     else:
         print("No valid dot product values to compare.")
 
+
 def update_entries(face, data):
     col_index = faces.index(face)
     for entries in [entries_mode1, entries_mode2, entries_mode3]:
         for key in ['X', 'Y', 'Z']:
             value = data.get(key, '0')
+
+            # Debugging: print the key and value being set
+            print(f"Updating {key} for {face} at column index {col_index} with value: {value}")
+
             entries[key][col_index].configure(text=str(value))
 
             # Update the corresponding list with the new value
@@ -305,22 +311,32 @@ def update_entries(face, data):
                     entries[key][col_index].insert(0, str(data[key]))
                 else:
                     entries[key][col_index].insert(0, '0')
+
+        if 'Note' in data:
+            note_value = data['Note']
+            note_widget = entries['Note'][col_index]
+            print(f"Updating Note widget at column {col_index} with value: {note_value}")
+            note_widget.configure(state="normal")
+            note_widget.delete(0, 'end')
+            note_widget.insert(0, str(note_value))
+            print(f"Note widget updated with value: {note_widget.get()}")
+
+
 def update_dot_product_entry(face, dot_product_value):
     col_index = faces.index(face)
     dot_product_vars[col_index].set(dot_product_value)
 
 
 def indicate_limit(label):
-   def update_color():
-       sides = number_of_sides.get()
-       if sides == 4 or sides == 20:
-           label.configure(text_color='#ff375f')
-       else:
-           label.configure(text_color='black')
-       root.after(100, update_color)
+    def update_color():
+        sides = number_of_sides.get()
+        if sides == 4 or sides == 20:
+            label.configure(text_color='#ff375f')
+        else:
+            label.configure(text_color='black')
+        root.after(100, update_color)
 
-
-   update_color()
+    update_color()
 
 
 # Add a flag to debounce the "Record" message
@@ -358,19 +374,23 @@ def save_to_file():
         with open(file_path, 'w') as file:
             file.write('#ifndef CONFIG_H\n#define CONFIG_H\n\n')
             file.write(f'#define DEVICE_NAME "{device_name}"\n\n')
+            file.write(f'#define NUM_SIDES "{number_of_sides.get()}"\n\n')
 
             # Face data configuration
             file.write("// Face data configuration\n")
 
             def write_entries(entries, mode):
-                for face, face_entries in entries.items():
-                    for i, entry in enumerate(face_entries):
-                        if face in ['X', 'Y', 'Z']:
-                            value = entry.cget("text")  # Get text from label
+                for i, face in enumerate(faces):
+                    for key in ['X', 'Y', 'Z', 'Note']:
+                        widget = entries[key][i]
+                        if isinstance(widget, ctk.CTkEntry):
+                            value = widget.get()
+                        elif isinstance(widget, ctk.CTkLabel):
+                            value = widget.cget("text")
                         else:
-                            value = entry.get()  # Get text from entry
-                        face_label = faces[i]
-                        file.write(f"#define {mode}_{face_label}_{face.upper()} {value}\n")
+                            value = '0'
+
+                        file.write(f"#define {mode}_Face {i + 1}_{key.upper()} {value}\n")
 
             # Write entries for each mode
             write_entries(entries_mode1, 'MODE1')
@@ -386,56 +406,77 @@ def save_to_file():
         print_to_console(f"Failed to save to file: {e}")
 
 
+def disable_space_key(event):
+    if event.keysym == 'space':
+        return "break"
+
+
+
 def parse_h_file(file_path):
-    data = {'MODE1': {}, 'MODE2': {}, 'MODE3': {}}
+    print("Initiating parse_h_file")  # Debugging statement
+
+    # Initialize dictionaries to store accelerometer data
+    modes = {'MODE1': {'X': [0] * 20, 'Y': [0] * 20, 'Z': [0] * 20, 'NOTE': ['0'] * 20},
+             'MODE2': {'X': [0] * 20, 'Y': [0] * 20, 'Z': [0] * 20, 'NOTE': ['0'] * 20},
+             'MODE3': {'X': [0] * 20, 'Y': [0] * 20, 'Z': [0] * 20, 'NOTE': ['0'] * 20}}
+
+    # Regular expression to match lines with data
+    pattern = re.compile(r'#define\s+(\w+)_Face\s+(\d+)_([XYZ]|NOTE)\s+([0-9.-]+)')
+
     with open(file_path, 'r') as file:
-        lines = file.readlines()
-        for line in lines:
-            if '#define' in line:
-                parts = line.split()
-                if len(parts) == 3:
-                    key = parts[1]
-                    value = parts[2]
-                    mode = None
+        for line in file:
+            match = pattern.match(line)
+            if match:
+                mode = match.group(1)
+                face_num = int(match.group(2))
+                key = match.group(3)
+                value = match.group(4)
 
-                    # Extract mode
-                    if 'MODE1' in key:
-                        mode = 'MODE1'
-                    elif 'MODE2' in key:
-                        mode = 'MODE2'
-                    elif 'MODE3' in key:
-                        mode = 'MODE3'
+                print(f"Matched - Mode: {mode}, Face Number: {face_num}, Key: {key}, Value: {value}")
 
-                    if mode:
-                        face_key, param = extract_face_and_param(key, mode)
-                        if face_key and param:
-                            if face_key not in data[mode]:
-                                data[mode][face_key] = {}
-                            data[mode][face_key][param] = value
-                        else:
-                            print(f"Skipping malformed key: {key}")
+                if mode in modes:
+                    if key in modes[mode]:
+                        modes[mode][key][face_num - 1] = value
                     else:
-                        print(f"Skipping key without mode: {key}")
-    return data
+                        print("Unexpected key:", key)
+                else:
+                    print("Unexpected mode:", mode)
+            elif '#define' in line and 'DEVICE_NAME' in line:
+                device_name = line.split()[2].strip('"')
+                print("Device Name:", device_name)
+                name_entry.delete(0, 'end')  # Clear the current value
+                name_entry.insert(0, device_name)  # Insert the new value
+            elif '#define' in line and 'NUM_SIDES' in line:
+                number_of_sides=line.split()[2].strip('"')
+                print("Number of Sides:", number_of_sides)
+                confirm_sides()
+                indicate_limit(sides_entry)
 
+            else:
+                print("Skipping line:", line.strip())
 
-def extract_face_and_param(key, mode):
-    face_param_part = key.split(f"{mode}_Face")
-    if len(face_param_part) > 1:
-        face_param = face_param_part[1].strip()
-        face_parts = face_param.split('_')
-        if len(face_parts) == 2:
-            face_number = face_parts[0]
-            param = face_parts[1]
-            face_key = f"Face {face_number}"
-            return face_key, param
-    return None, None
+    print("Finished parsing file")  # Debugging statement
 
+    # Process all faces and modes
+    for mode in modes:
+        for face_num in range(1, 21):  # Faces 1 to 20
+            face = f'Face {face_num}'
+            data = {axis: modes[mode][axis][face_num - 1] for axis in ['X', 'Y', 'Z']}
+            data['Note'] = modes[mode]['NOTE'][face_num - 1]
+
+            # Debugging: print the data to be passed to update_entries
+            print(f"Updating entries for {face} in {mode} with data: {data}")
+
+            update_entries(face, data)
 
 def import_file():
+    print("Initiating import_file")  # Debugging statement
+    print_to_console("Initiating import_file")
     file_path = filedialog.askopenfilename(filetypes=[("Header files", "*.h")])
     if file_path:
         data = parse_h_file(file_path)
+    print("Finished import_file")  # Debugging statement
+    print_to_console("Finished import_file")  # Debugging statement
 
 
 def create_face_layout(parent_frame, entries):
@@ -500,10 +541,6 @@ def create_face_layout(parent_frame, entries):
                 entry.insert(0, '0')
                 entries[label].append(entry)
 
-
-
-
-
 # Title Frame ---------------------------------------------------------------------------------------------
 
 f_title = ctk.CTkFrame(master=frame, fg_color='transparent')
@@ -550,9 +587,12 @@ label_2.grid(row=0, column=0, padx=20, pady=5)
 
 name_entry = ctk.CTkEntry(master=f_name, textvariable=device_name, placeholder_text='enter name', height=30, width=270)
 name_entry.grid(row=1, column=0, padx=20, pady=5)
+name_entry.bind("<Key>", disable_space_key)
+
 
 for widget in f_name.winfo_children():
     widget.grid_configure(padx=20, pady=5)
+
 
 # Sides Frame -------------------------------------------------------------------------------------
 f_sides = ctk.CTkFrame(master=frame, fg_color="#e5e5ea")
@@ -596,16 +636,16 @@ f_file.grid(row=4, column=0, padx=10, pady=5, sticky='nsw')
 
 button_save = ctk.CTkButton(master=f_file, height=30, width=280, text="Save to File", fg_color='#6ac4dc',
                             hover_color='#008299', text_color="#302c2c", command=save_to_file)
-button_save.grid(row=0, column=0, padx=10, pady=5)
+button_save.grid(row=1, column=0, padx=10, pady=5)
 
 button_import = ctk.CTkButton(master=f_file, height=30, width=280, text="Import File", fg_color='#6ac4dc',
                               hover_color='#008299', text_color="#302c2c", command=import_file)
-button_import.grid(row=1, column=0, padx=10, pady=5)
+button_import.grid(row=2, column=0, padx=10, pady=5)
 
 
 test_toggle = ctk.CTkSwitch(f_file, text="Test Toggle", font=('Bahnschrift SemiBold', 12), height=30, width=270,
                             fg_color='#6ac4dc', text_color="#302c2c")
-test_toggle.grid(row=2, column=0, padx=20, pady=5, sticky='nswe')
+test_toggle.grid(row=0, column=0, padx=20, pady=5, sticky='nswe')
 
 
 
