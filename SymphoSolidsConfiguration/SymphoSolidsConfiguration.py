@@ -1,3 +1,4 @@
+#Author: Yahia Hassanen
 import asyncio
 import customtkinter as ctk
 import keyboard
@@ -44,7 +45,7 @@ frame.grid_columnconfigure(1, weight=1000)
 
 # Console Frame-----------------------------------------------------------------------------------------------------------
 f_console = ctk.CTkFrame(master=frame, fg_color="#f2f2f7")
-f_console.grid(row=5, column=0, padx=20, pady=20, columnspan=2, sticky='nsew')
+f_console.grid(row=5, column=0, padx=25, pady=25, columnspan=2, sticky='nsew')
 
 label_console = ctk.CTkLabel(master=f_console, text='Serial Monitor', font=('Bahnschrift SemiBold', 12))
 label_console.grid(row=0, column=0, sticky='nswe')
@@ -64,14 +65,13 @@ selected_address = ctk.StringVar(value="      Select Device")
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 record_lock = threading.Lock()
-dot_product_visible = ctk.BooleanVar(value=False)
 
 global current_dot_prod
 current_dot_prod = None
 
 
 faces = [f"Face {i}" for i in range(1, 21)]
-number_of_sides = ctk.IntVar(value=4)  # Default value
+number_of_controls = ctk.IntVar(value=4)  # Default value
 device_name = ctk.StringVar(value='')  # Default value
 dot_product_vars = [ctk.StringVar() for i in faces]
 
@@ -181,9 +181,9 @@ def disconnect():
     button_connect.configure(text="Connect", command=confirm_selection, fg_color='#6ac4dc', hover_color='#24cc44')
 
 
-def confirm_sides():
+def confirm_sides(sides):
+    sides=int(sides)
     global debounce_timer
-    sides = number_of_sides.get()
     if debounce_timer is not None:
         root.after_cancel(debounce_timer)
     debounce_timer = root.after(3000, lambda: [update_face_buttons_and_entries(sides, tabs)])
@@ -226,6 +226,7 @@ def dot_product(face, data, unit_vector):
     return round(dot_product_value, 3)
 
 
+
 async def notification_handler(sender, data):
     global record_message_sent, current_dot_prod
     try:
@@ -245,7 +246,7 @@ async def notification_handler(sender, data):
                 if dp_value is not None:
                     update_dot_product_entry(last_selected_face, dp_value)
         elif len(data) == 4:
-            current_dot_prod = round(struct.unpack('f', data)[0],3)
+            current_dot_prod = round(struct.unpack('f', data)[0], 3)
             print(f"Received 4-byte dot product: {current_dot_prod}")
             print_to_console(f"Received 4-byte dot product: {current_dot_prod}")
             highlight_closest(current_dot_prod)
@@ -256,33 +257,25 @@ async def notification_handler(sender, data):
 
     record_message_sent = False
 
-
-def highlight_closest(refrence_dot):
+def highlight_closest(reference_dot):
     if current_dot_prod is None:
         print("current_dot_prod is None, cannot compute closest value.")
         return
-    # Convert the values, setting invalid or empty values to 0
-    dot_product_values = []
-    for var in dot_product_vars:
-        try:
-            value = float(var.get())
-        except ValueError:
-            value = 0.0  # Set invalid or empty values to 0
-            print(f"Invalid value '{var.get()}', setting to 0")
-        dot_product_values.append(value)
 
-    if dot_product_values:
-        closest_value = min(dot_product_values, key=lambda x: abs(x - current_dot_prod))
-        print(f"The closest dot product value to {current_dot_prod} is {closest_value}")
-        # Highlight the corresponding label in the GUI
-        for label, value in zip(entries_mode1['Dot Product'], dot_product_values):
-            if value == closest_value:
-                label.configure(fg_color="yellow")  # Change the foreground color to highlight
-            else:
-                label.configure(fg_color="#e5e5ea")  # Reset the color for other labels
-    else:
-        print("No valid dot product values to compare.")
+    try:
+        dot_product_values = [float(var.get() or 0) for var in dot_product_vars]
+    except ValueError as e:
+        print(f"Invalid value encountered: {e}")
+        return
 
+    closest_value = min(dot_product_values, key=lambda x: abs(x - current_dot_prod))
+    print(f"The closest dot product value to {current_dot_prod} is {closest_value}")
+
+    for label, value in zip(entries_mode1['Dot Product'], dot_product_values):
+        if value == closest_value:
+            label.configure(fg_color="yellow")  # Highlight closest value
+        else:
+            label.configure(fg_color="#e5e5ea")  # Reset color for other labels
 
 def update_entries(face, data):
     col_index = faces.index(face)
@@ -290,8 +283,6 @@ def update_entries(face, data):
         for key in ['X', 'Y', 'Z']:
             value = data.get(key, '0')
 
-            # Debugging: print the key and value being set
-            print(f"Updating {key} for {face} at column index {col_index} with value: {value}")
 
             entries[key][col_index].configure(text=str(value))
 
@@ -329,7 +320,7 @@ def update_dot_product_entry(face, dot_product_value):
 
 def indicate_limit(label):
     def update_color():
-        sides = number_of_sides.get()
+        sides = number_of_controls.get()
         if sides == 4 or sides == 20:
             label.configure(text_color='#ff375f')
         else:
@@ -374,7 +365,7 @@ def save_to_file():
         with open(file_path, 'w') as file:
             file.write('#ifndef CONFIG_H\n#define CONFIG_H\n\n')
             file.write(f'#define DEVICE_NAME "{device_name}"\n\n')
-            file.write(f'#define NUM_SIDES "{number_of_sides.get()}"\n\n')
+            file.write(f'#define NUM_SIDES "{number_of_controls.get()}"\n\n')
 
             # Face data configuration
             file.write("// Face data configuration\n")
@@ -416,9 +407,9 @@ def parse_h_file(file_path):
     print("Initiating parse_h_file")  # Debugging statement
 
     # Initialize dictionaries to store accelerometer data
-    modes = {'MODE1': {'X': [0] * 20, 'Y': [0] * 20, 'Z': [0] * 20, 'NOTE': ['0'] * 20},
-             'MODE2': {'X': [0] * 20, 'Y': [0] * 20, 'Z': [0] * 20, 'NOTE': ['0'] * 20},
-             'MODE3': {'X': [0] * 20, 'Y': [0] * 20, 'Z': [0] * 20, 'NOTE': ['0'] * 20}}
+    modes = {'MODE1': {'X': [0] * 25, 'Y': [0] * 25, 'Z': [0] * 25, 'NOTE': ['0'] * 20},
+             'MODE2': {'X': [0] * 25, 'Y': [0] * 25, 'Z': [0] * 25, 'NOTE': ['0'] * 20},
+             'MODE3': {'X': [0] * 25, 'Y': [0] * 25, 'Z': [0] * 25, 'NOTE': ['0'] * 20}}
 
     # Regular expression to match lines with data
     pattern = re.compile(r'#define\s+(\w+)_Face\s+(\d+)_([XYZ]|NOTE)\s+([0-9.-]+)')
@@ -447,10 +438,12 @@ def parse_h_file(file_path):
                 name_entry.delete(0, 'end')  # Clear the current value
                 name_entry.insert(0, device_name)  # Insert the new value
             elif '#define' in line and 'NUM_SIDES' in line:
-                number_of_sides=line.split()[2].strip('"')
-                print("Number of Sides:", number_of_sides)
-                confirm_sides()
-                indicate_limit(sides_entry)
+                rec_sides=line.split()[2].strip('"')
+                print("Number of Sides:", rec_sides)
+                confirm_sides(rec_sides)
+                print("Called confirm_sides")
+                number_of_controls.set(rec_sides)
+                print("Counter updated")
 
             else:
                 print("Skipping line:", line.strip())
@@ -485,7 +478,7 @@ def create_face_layout(parent_frame, entries):
             master=parent_frame,
             text=face,
             command=lambda v=face: asyncio.run_coroutine_threadsafe(record_face(v), loop),
-            height=20,
+            height=25,
             width=50,
             fg_color="#6ac4dc",
             text_color="#302c2c",
@@ -551,42 +544,42 @@ header.grid(row=0, column=0, columnspan=2)
 
 # Device Manager Frame-------------------------------------------------------------------------------------
 f_device_manager = ctk.CTkFrame(master=frame, fg_color="#e5e5ea")
-f_device_manager.grid(row=1, column=0, padx=10, pady=10, sticky='nsw')
+f_device_manager.grid(row=1, column=0, padx=10, pady=10, sticky='nw')
 
 label = ctk.CTkLabel(master=f_device_manager, text="Device Manager", font=('Bahnschrift SemiBold', 16))
-label.grid(row=0, column=0, padx=20, pady=5)
+label.grid(row=0, column=0, padx=25, pady=5)
 
-button_scan = ctk.CTkButton(f_device_manager, height=30, width=270, text="Scan for Devices",
+button_scan = ctk.CTkButton(f_device_manager, height=25, width=270, text="Scan for Devices",
                             command=lambda: asyncio.run_coroutine_threadsafe(scan_devices(), loop),
                             fg_color='#6ac4dc', hover_color='#008299', text_color="#302c2c")
-button_scan.grid(row=1, column=0, padx=20, pady=5)
+button_scan.grid(row=1, column=0, padx=25, pady=5)
 
 options = ["no devices available"]
-device_menu = ctk.CTkOptionMenu(f_device_manager, height=30, width=270, variable=selected_address, values=options,
+device_menu = ctk.CTkOptionMenu(f_device_manager, height=25, width=270, variable=selected_address, values=options,
                                 fg_color='#c7c7cc', text_color="#302c2c")
-device_menu.grid(row=2, column=0, padx=20, pady=5)
+device_menu.grid(row=2, column=0, padx=25, pady=5)
 
-button_connect = ctk.CTkButton(f_device_manager, text="Connect", height=30, width=270, command=confirm_selection,
+button_connect = ctk.CTkButton(f_device_manager, text="Connect", height=25, width=270, command=confirm_selection,
                                fg_color='#6ac4dc', hover_color='#24cc44', text_color="#302c2c")
-button_connect.grid(row=3, column=0, padx=20, pady=5)
+button_connect.grid(row=3, column=0, padx=25, pady=5)
 
-button_disconnect = ctk.CTkButton(f_device_manager, text="Disconnect", height=30, width=270, command=disconnect,
+button_disconnect = ctk.CTkButton(f_device_manager, text="Disconnect", height=25, width=270, command=disconnect,
                                   fg_color='#6ac4dc', hover_color='#ff375f', text_color="#302c2c")
-button_disconnect.grid(row=4, column=0, padx=20, pady=5)
+button_disconnect.grid(row=4, column=0, padx=25, pady=5)
 
 for widget in f_device_manager.winfo_children():
     widget.grid_configure(padx=20, pady=5)
 
 # Name Frame -------------------------------------------------------------------------------------
 f_name = ctk.CTkFrame(master=frame, fg_color="#e5e5ea")
-f_name.grid(row=2, column=0, padx=10, pady=10, sticky='nsw')
+f_name.grid(row=2, column=0, padx=10, pady=5, sticky='nw')
 
 label_2 = ctk.CTkLabel(master=f_name, text='Name Device', anchor='center', font=('Bahnschrift SemiBold', 16),
                        text_color="#302c2c")
-label_2.grid(row=0, column=0, padx=20, pady=5)
+label_2.grid(row=0, column=0, padx=25, pady=5)
 
-name_entry = ctk.CTkEntry(master=f_name, textvariable=device_name, placeholder_text='enter name', height=30, width=270)
-name_entry.grid(row=1, column=0, padx=20, pady=5)
+name_entry = ctk.CTkEntry(master=f_name, textvariable=device_name, placeholder_text='enter name', height=25, width=270)
+name_entry.grid(row=1, column=0, padx=25, pady=5)
 name_entry.bind("<Key>", disable_space_key)
 
 
@@ -594,58 +587,130 @@ for widget in f_name.winfo_children():
     widget.grid_configure(padx=20, pady=5)
 
 
-# Sides Frame -------------------------------------------------------------------------------------
-f_sides = ctk.CTkFrame(master=frame, fg_color="#e5e5ea")
-f_sides.grid(row=3, column=0, sticky='nswe', padx=10, pady=10)
+# Controls Frame (Functions and Widgets) -------------------------------------------------------------------------------------
+frame.grid_rowconfigure(3, weight=1)
+frame.grid_columnconfigure(0, weight=1)
 
-label_2 = ctk.CTkLabel(master=f_sides, text='# of Sides', font=('Bahnschrift SemiBold', 16), text_color="#302c2c")
-label_2.grid(row=0, column=1, padx=10, pady=5)
+f_controls = ctk.CTkFrame(master=frame, fg_color="#e5e5ea")
+f_controls.grid(row=3, column=0, sticky='ew', padx=10, pady=10)
 
-sides_entry = ctk.CTkLabel(f_sides, textvariable=number_of_sides, font=('Bahnschrift SemiBold', 27),
+label_2 = ctk.CTkLabel(master=f_controls, text='Controls', font=('Bahnschrift SemiBold', 16), text_color="#302c2c")
+label_2.grid(row=0, column=0, columnspan=3, padx=10, pady=5)
+
+button_up = ctk.CTkButton(
+    f_controls, text="▲", height=12, width=12,
+    command=lambda: [
+        number_of_controls.set(min(25, number_of_controls.get() + 1)),  # Ensure the value doesn't go above 20
+        confirm_sides(number_of_controls.get()),
+        indicate_limit(sides_entry) if number_of_controls.get() == 20 else None
+    ],
+    fg_color='#6ac4dc', hover_color='#008299', font=('Bahnschrift SemiBold', 12)
+)
+button_up.grid(row=1, column=0, ipadx=5, ipady=5)
+
+sides_entry = ctk.CTkLabel(f_controls, textvariable=number_of_controls, font=('Bahnschrift SemiBold', 27),
                            text_color="#302c2c")
 sides_entry.grid(row=1, column=1, padx=10, pady=5)
 
 button_down = ctk.CTkButton(
-    f_sides, text="▼", height=20, width=20,
+    f_controls, text="▼", height=12, width=12,
     command=lambda: [
-        number_of_sides.set(max(4, number_of_sides.get() - 1)),  # Ensure the value doesn't go below 4
-        confirm_sides(),
-        indicate_limit(sides_entry) if number_of_sides.get() == 4 else None
+        number_of_controls.set(max(4, number_of_controls.get() - 1)),  # Ensure the value doesn't go below 4
+        confirm_sides(number_of_controls.get()),
+        indicate_limit(sides_entry) if number_of_controls.get() == 4 else None
     ],
-    fg_color='#6ac4dc', hover_color='#008299', font=('Bahnschrift SemiBold', 25)
+    fg_color='#6ac4dc', hover_color='#008299', font=('Bahnschrift SemiBold', 12)
 )
-button_down.grid(row=1, column=0, ipadx=12, ipady=5)
+button_down.grid(row=1, column=2, ipadx=5, ipady=5)
 
-button_up = ctk.CTkButton(
-    f_sides, text="▲", height=20, width=20,
-    command=lambda: [
-        number_of_sides.set(min(20, number_of_sides.get() + 1)),  # Ensure the value doesn't go above 20
-        confirm_sides(),
-        indicate_limit(sides_entry) if number_of_sides.get() == 20 else None
-    ],
-    fg_color='#6ac4dc', hover_color='#008299', font=('Bahnschrift SemiBold', 25)
-)
-button_up.grid(row=1, column=2, ipadx=12, ipady=5)
+check_var = ctk.StringVar(value="off")  #set checkbox as off
 
-for widget in f_sides.winfo_children():
-    widget.grid_configure(padx=20, pady=5)
+
+def hide_dp():
+    # Loop over the three modes
+    for entries in [entries_mode1, entries_mode2, entries_mode3]:
+        # First set of 10 columns
+        for col_index in range(1, 11):
+            entries['Dot Product'][col_index - 1].grid_forget()
+
+        # Second set of 10 columns
+        for col_index in range(11, 21):
+            entries['Dot Product'][col_index - 1].grid_forget()
+
+    print("DP Hidden")
+    print_to_console("DP Hidden")
+
+
+def show_dp():
+    # Loop over the three modes
+    for entries in [entries_mode1, entries_mode2, entries_mode3]:
+        # First set of 10 columns
+        for col_index in range(1, 11):
+            entries['Dot Product'][col_index - 1].grid(row=6, column=col_index, padx=5, pady=5, sticky='nsew')
+
+        # Second set of 10 columns
+        for col_index in range(11, 21):
+            entries['Dot Product'][col_index - 1].grid(row=12, column=col_index - 10, padx=5, pady=5, sticky='nsew')
+
+    print("DP Visible")
+    print_to_console("DP Visible")
+
+
+def checkbox_event():
+    print("checkbox toggled, current value:", check_var.get())
+    if check_var.get() == "on":
+        show_dp()
+    else:
+        hide_dp()
+
+
+checkbox = ctk.CTkCheckBox(master=f_controls, text="Show Dot Product", command=checkbox_event,
+                           variable=check_var, onvalue="on", offvalue="off", font=('Bahnschrift SemiBold', 10) )
+checkbox.grid(row=2, column=0, columnspan=1, sticky='nw')
+
+test_toggle = ctk.CTkSwitch(f_controls, text="Highlight closest", font=('Bahnschrift SemiBold', 10), height=25, width=60,
+                            fg_color='#6ac4dc', text_color="#302c2c")
+test_toggle.grid(row=2, column=2, columnspan=1, padx=5, pady=5, sticky='ne')
+
+
+async def toggle_dp_sensor():
+    if test_toggle.get() == 1:
+        print("Toggle On. Active Tracking On")
+        print_to_console("Toggle On. Active Tracking On")
+
+        await send_data(client, "Test")
+    else:
+        # Turn off the tracking visual indications
+        for label in entries_mode1['Dot Product']:
+            label.configure(fg_color="#e5e5ea")
+
+        print("Toggle Off switch. Active Tracking Off.")
+        await asyncio.sleep(1)  # Check the toggle state every 1 second
+
+def run_toggle_dp_sensor():
+    asyncio.run(toggle_dp_sensor())
+    print("pass to async")
+
+
+
+test_toggle.configure(command=run_toggle_dp_sensor)
+
+for widget in f_controls.winfo_children():
+    widget.grid_configure(padx=5, pady=5)
 
 # File Management -------------------------------------------------------------------------------------
 f_file = ctk.CTkFrame(master=frame, fg_color="#e5e5ea")
 f_file.grid(row=4, column=0, padx=10, pady=5, sticky='nsw')
 
-button_save = ctk.CTkButton(master=f_file, height=30, width=280, text="Save to File", fg_color='#6ac4dc',
+button_save = ctk.CTkButton(master=f_file, height=25, width=280, text="Save to File", fg_color='#6ac4dc',
                             hover_color='#008299', text_color="#302c2c", command=save_to_file)
-button_save.grid(row=1, column=0, padx=10, pady=5)
+button_save.grid(row=0, column=0, padx=10, pady=5)
 
-button_import = ctk.CTkButton(master=f_file, height=30, width=280, text="Import File", fg_color='#6ac4dc',
+button_import = ctk.CTkButton(master=f_file, height=25, width=280, text="Import File", fg_color='#6ac4dc',
                               hover_color='#008299', text_color="#302c2c", command=import_file)
-button_import.grid(row=2, column=0, padx=10, pady=5)
+button_import.grid(row=1, column=0, padx=10, pady=5)
 
 
-test_toggle = ctk.CTkSwitch(f_file, text="Test Toggle", font=('Bahnschrift SemiBold', 12), height=30, width=270,
-                            fg_color='#6ac4dc', text_color="#302c2c")
-test_toggle.grid(row=0, column=0, padx=20, pady=5, sticky='nswe')
 
 
 
@@ -714,7 +779,7 @@ def update_interface_on_connection(status):
         'tab_faces2': tab_faces2.winfo_children(),
         'tab_faces3': tab_faces3.winfo_children(),
         'f_name': f_name.winfo_children(),
-        'f_sides': f_sides.winfo_children()
+        'f_controls': f_controls.winfo_children()
     }
 
     # Disable/enable widgets based on connection status
@@ -744,7 +809,7 @@ async def connect_to_device(address):
         # Update the button to show connected status
         button_connect.configure(text="Connected", fg_color='#24cc44', command=connect_to_device)
 
-        confirm_sides()
+        confirm_sides(number_of_controls.get())
         popup.destroy()
 
         services = await client.get_services()
@@ -802,47 +867,6 @@ create_face_layout(tab_faces3, entries_mode3)
 
 
 
-async def toggle_dot_product_sensor():
-    global current_dot_prod  # Ensure this is treated as a global variable
-    if test_toggle.get() == 1:
-        visibility = dot_product_visible.get()
-        new_state = not visibility
-        dot_product_visible.set(new_state)
-
-        for row_index in [6, 12]:  # Adjusted row indices for Dot Product
-            for col_index in range(1, 11):
-                entries_mode1['Dot Product'][col_index - 1].grid_remove() if not new_state else \
-                entries_mode1['Dot Product'][col_index - 1].grid()
-            for col_index in range(11, 21):
-                entries_mode1['Dot Product'][col_index - 1].grid_remove() if not new_state else \
-                entries_mode1['Dot Product'][col_index - 1].grid()
-
-
-        print("The switch is ON and the function is activated.")
-        print_to_console("The switch is ON and the function is activated.")
-        time.sleep(2)
-        await send_data(client, "Test")
-
-        await asyncio.sleep(5)  # Wait for 5 seconds before repeating
-
-    else:
-        for row_index in [6, 12]:  # Adjusted row indices for Dot Product
-            for col_index in range(1, 11):
-                entries_mode1['Dot Product'][col_index - 1].grid_remove()
-            for col_index in range(11, 21):
-                entries_mode1['Dot Product'][col_index - 1].grid_remove()
-
-            # Remove highlights
-        for label in entries_mode1['Dot Product']:
-            label.configure(fg_color="#FFFFFF")
-
-        print("The switch is OFF. The function is deactivated.")
-
-def run_toggle_dot_product_sensor():
-    asyncio.run(toggle_dot_product_sensor())
-    print("pass to async")
-
-test_toggle.configure(command= run_toggle_dot_product_sensor)
 # Disable the interface initially
 update_interface_on_connection(False)
 
