@@ -69,6 +69,7 @@ class MyCallbacks : public NimBLECharacteristicCallbacks {
         }
         if (receivedData.equals("Test")){
           processTest = true;
+          Serial.print("Processing Test");
         }
         else if (receivedData.equals("Disconnect")) {
             disconnect();
