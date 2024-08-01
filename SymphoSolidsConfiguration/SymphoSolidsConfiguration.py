@@ -263,7 +263,7 @@ def highlight_closest(reference_dot):
         return
 
     try:
-        dot_product_values = [float(var.get() or 0) for var in dot_product_vars]
+        dot_product_values = [float(var.get() or -100) for var in dot_product_vars]
     except ValueError as e:
         print(f"Invalid value encountered: {e}")
         return
@@ -274,6 +274,7 @@ def highlight_closest(reference_dot):
     for label, value in zip(entries_mode1['Dot Product'], dot_product_values):
         if value == closest_value:
             label.configure(fg_color="yellow")  # Highlight closest value
+            print("highlighted!")
         else:
             label.configure(fg_color="#e5e5ea")  # Reset color for other labels
 
@@ -306,6 +307,8 @@ def update_entries(face, data):
         if 'Note' in data:
             note_value = data['Note']
             note_widget = entries['Note'][col_index]
+            note_widget.bind("<Key>", restrict_space_key)
+            note_widget.bind("<Key>", restrict_input)
             print(f"Updating Note widget at column {col_index} with value: {note_value}")
             note_widget.configure(state="normal")
             note_widget.delete(0, 'end')
@@ -348,7 +351,7 @@ async def record_face(selected_face):
        last_selected_face = selected_face
 
 
-def save_to_file():
+def save_file():
     file_path = filedialog.asksaveasfilename(
         initialdir="C://Users//1yahi//Desktop",
         defaultextension=".h",
@@ -359,48 +362,49 @@ def save_to_file():
         print("Save operation cancelled")
         return
 
-    device_name = name_entry.get()
-
     try:
         with open(file_path, 'w') as file:
-            file.write('#ifndef CONFIG_H\n#define CONFIG_H\n\n')
-            file.write(f'#define DEVICE_NAME "{device_name}"\n\n')
-            file.write(f'#define NUM_SIDES "{number_of_controls.get()}"\n\n')
+            file.write("#ifndef CONFIG_H\n#define CONFIG_H\n\n")
+            file.write('#define DEVICE_NAME "blablabla"\n')
+            file.write('#define NUM_SIDES "20"\n\n\n')
 
-            # Face data configuration
-            file.write("// Face data configuration\n")
+            # Write X, Y, Z and DotProduct values once for each face
+            for i in range(20):
+                file.write(f"#define Face {i+1}_X {accel_X[i]}\n")
+                file.write(f"#define Face {i+1}_Y {accel_Y[i]}\n")
+                file.write(f"#define Face {i+1}_Z {accel_Z[i]}\n")
+                file.write(f"#define Face {i+1}_DotProduct {dot_product_vars[i].get()}\n")
 
-            def write_entries(entries, mode):
-                for i, face in enumerate(faces):
-                    for key in ['X', 'Y', 'Z', 'Note']:
-                        widget = entries[key][i]
-                        if isinstance(widget, ctk.CTkEntry):
-                            value = widget.get()
-                        elif isinstance(widget, ctk.CTkLabel):
-                            value = widget.cget("text")
-                        else:
-                            value = '0'
-
-                        file.write(f"#define {mode}_Face {i + 1}_{key.upper()} {value}\n")
-
-            # Write entries for each mode
-            write_entries(entries_mode1, 'MODE1')
-            write_entries(entries_mode2, 'MODE2')
-            write_entries(entries_mode3, 'MODE3')
+            # Write Notes for each mode separately
+            for mode in ['MODE1', 'MODE2', 'MODE3']:
+                for i in range(20):
+                    file.write(f"#define {mode}_Face {i+1}_NOTE {entries_mode1['Note'][i].get() if mode == 'MODE1' else entries_mode2['Note'][i].get() if mode == 'MODE2' else entries_mode3['Note'][i].get()}\n")
 
             file.write("\n#endif // CONFIG_H\n")
 
-        print("Configuration saved to", file_path)
-        print_to_console(f"Configuration saved to {file_path}")
+        print("File saved successfully")
+        print_to_console("File saved successfully")
     except Exception as e:
-        print(f"Failed to save to file: {e}")
-        print_to_console(f"Failed to save to file: {e}")
+        print(f"Failed to save file: {e}")
+        print_to_console(f"Failed to save file: {e}")
 
 
-def disable_space_key(event):
+def restrict_space_key(event):
     if event.keysym == 'space':
         return "break"
 
+def restrict_input(event):
+    allowed_keys = ['BackSpace', 'Left', 'Right', 'Up', 'Down', 'Delete', 'Tab', 'Return']
+    if event.keysym in allowed_keys:
+        return
+    elif event.char.isdigit():
+        current_value = event.widget.get()
+        # Check if the current input plus the new character is within the range
+        new_value = current_value + event.char
+        if int(new_value) > 127:
+            return "break"
+    else:
+        return "break"
 
 
 def parse_h_file(file_path):
@@ -468,8 +472,22 @@ def import_file():
     file_path = filedialog.askopenfilename(filetypes=[("Header files", "*.h")])
     if file_path:
         data = parse_h_file(file_path)
+        calculate_and_store_dot_products()
     print("Finished import_file")  # Debugging statement
     print_to_console("Finished import_file")  # Debugging statement
+
+def calculate_and_store_dot_products():
+    for face in faces:
+        # Assuming unit_vector is defined and accessible
+        face_index = faces.index(face)
+        data = {
+            'X': float(accel_X[face_index]),
+            'Y': float(accel_Y[face_index]),
+            'Z': float(accel_Z[face_index])
+        }
+        dp_value = dot_product(face, data, unit_vector)
+        if dp_value is not None:
+            dot_product_vars[face_index].set(dp_value)
 
 
 def create_face_layout(parent_frame, entries):
@@ -509,6 +527,8 @@ def create_face_layout(parent_frame, entries):
             else:
                 entry = ctk.CTkEntry(master=parent_frame, width=50, height=5)
                 entry.configure(state="normal")
+                entry.bind("<Key>", restrict_space_key)
+                entry.bind("<Key>", restrict_input)
                 entry.grid(row=row_index, column=col_index, padx=5, pady=5, sticky='nsew')
                 entry.insert(0, '0')
                 entries[label].append(entry)
@@ -530,6 +550,8 @@ def create_face_layout(parent_frame, entries):
             else:
                 entry = ctk.CTkEntry(master=parent_frame, width=50, height=5)
                 entry.configure(state="normal")
+                entry.bind("<Key>", restrict_space_key)
+                entry.bind("<Key>", restrict_input)
                 entry.grid(row=row_index + 6, column=col_index - 10, padx=5, pady=5, sticky='nsew')
                 entry.insert(0, '0')
                 entries[label].append(entry)
@@ -580,7 +602,7 @@ label_2.grid(row=0, column=0, padx=25, pady=5)
 
 name_entry = ctk.CTkEntry(master=f_name, textvariable=device_name, placeholder_text='enter name', height=25, width=270)
 name_entry.grid(row=1, column=0, padx=25, pady=5)
-name_entry.bind("<Key>", disable_space_key)
+name_entry.bind("<Key>", restrict_space_key)
 
 
 for widget in f_name.winfo_children():
@@ -703,7 +725,7 @@ f_file = ctk.CTkFrame(master=frame, fg_color="#e5e5ea")
 f_file.grid(row=4, column=0, padx=10, pady=5, sticky='nsw')
 
 button_save = ctk.CTkButton(master=f_file, height=25, width=280, text="Save to File", fg_color='#6ac4dc',
-                            hover_color='#008299', text_color="#302c2c", command=save_to_file)
+                            hover_color='#008299', text_color="#302c2c", command=save_file)
 button_save.grid(row=0, column=0, padx=10, pady=5)
 
 button_import = ctk.CTkButton(master=f_file, height=25, width=280, text="Import File", fg_color='#6ac4dc',
@@ -731,7 +753,6 @@ tabview.grid(row=1, column=1, rowspan=4, sticky='nsew', padx=10, pady=10)
 tab_faces1 = tabview.add("Mode 1")
 tab_faces2 = tabview.add("Mode 2")
 tab_faces3 = tabview.add("Mode 3")
-tab_faces4 = tabview.add("Test")
 
 tabs = [tab_faces1, tab_faces2, tab_faces3]
 
