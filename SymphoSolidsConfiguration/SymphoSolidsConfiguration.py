@@ -1,4 +1,4 @@
-#Author: Yahia Hassanen
+#File: SymphoSolidsConfiguration
 import asyncio
 import customtkinter as ctk
 import keyboard
