@@ -7,6 +7,7 @@ import time
 from customtkinter import *
 from customtkinter import filedialog
 import math
+import numpy
 import re
 import itertools
 import threading
@@ -66,16 +67,15 @@ loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 record_lock = threading.Lock()
 
-global current_dot_prod
-current_dot_prod = None
+global current_xyz
+current_xyz = None
 
 
 faces = [f"Face {i}" for i in range(1, 21)]
 number_of_controls = ctk.IntVar(value=4)  # Default value
 device_name = ctk.StringVar(value='')  # Default value
-dot_product_vars = [ctk.StringVar() for i in faces]
+angle_vars = [ctk.StringVar() for i in faces]
 
-unit_vector = [0, 0, 1]
 
 accel_X = [0] * 20
 accel_Y = [0] * 20
@@ -189,91 +189,70 @@ def confirm_sides(sides):
     debounce_timer = root.after(3000, lambda: [update_face_buttons_and_entries(sides, tabs)])
 
 
+
 def parse_accelerometer_data(data):
     try:
         accelX, accelY, accelZ = struct.unpack('fff', data)
         accelX = round(accelX, 2)
         accelY = round(accelY, 2)
         accelZ = round(accelZ, 2)
-        return {'X': accelX, 'Y': accelY, 'Z': accelZ}
+
+        if test_toggle.get() == 1:
+            current_xyz = {'X': accelX, 'Y': accelY, 'Z': accelZ}
+            print(f"Current Orientation: {current_xyz}")
+            print_to_console(f"Current Orientation: {current_xyz}")
+            angle_between(current_xyz)
+            print(f"Sent to angle calc")
+        else:
+            parsed_data = {'X': accelX, 'Y': accelY, 'Z': accelZ}
+            print(f"Parsed data: X={parsed_data['X']}, Y={parsed_data['Y']}, Z={parsed_data['Z']}")
+            print_to_console(f"Parsed data: X={parsed_data['X']}, Y={parsed_data['Y']}, Z={parsed_data['Z']}")
+            update_entries(last_selected_face, parsed_data)
     except struct.error as e:
         print(f"Failed to parse data: {e}")
         print_to_console(f"Failed to parse data: {e}")
         return {}
 
 
-def dot_product(face, data, unit_vector):
-    x = data.get('X', 0)
-    y = data.get('Y', 0)
-    z = data.get('Z', 0)
 
-    # Calculate magnitude of XYZ vector
-    magnitude = math.sqrt(x * x + y * y + z * z)
-
-    if magnitude == 0:
-        return  # Avoid division by zero if magnitude is zero
-
-    # Normalize XYZ vector to unit vector
-    normalized_x = x / magnitude
-    normalized_y = y / magnitude
-    normalized_z = z / magnitude
-
-    # Calculate dot product with unit vector
-    dot_product_value = normalized_x * unit_vector[0] + \
-                        normalized_y * unit_vector[1] + \
-                        normalized_z * unit_vector[2]
-
-    return round(dot_product_value, 3)
-
+def angle_between(current_xyz):
+    print("Calculating...")
+    for i in faces:
+        face_index = faces.index(face)
+        data = {
+            'X': float(accel_X[face_index]),
+            'Y': float(accel_Y[face_index]),
+            'Z': float(accel_Z[face_index])
+        }
+        angle = math.acos(numpy.vecdot(face,current_xyz)/(numpy.linalg.vectornorm(face)*numpy.linalg.vector_norm(current_xyz)))
+        print(f"Angle between current orientation and Face {i} is:",round(angle,3))
+        highlight_closest()
 
 
 async def notification_handler(sender, data):
-    global record_message_sent, current_dot_prod
+    global record_message_sent, current_xyz
     try:
         print(f"Received data: {data}")
         print_to_console(f"Received data: {data}")
 
         if len(data) == 12:
             parsed_data = parse_accelerometer_data(data)
-
-            if parsed_data:
-                print(f"Parsed data: X={parsed_data['X']}, Y={parsed_data['Y']}, Z={parsed_data['Z']}")
-                print_to_console(f"Parsed data: X={parsed_data['X']}, Y={parsed_data['Y']}, Z={parsed_data['Z']}")
-                update_entries(last_selected_face, parsed_data)
-
-                dp_value = dot_product(last_selected_face, parsed_data, unit_vector)
-
-                if dp_value is not None:
-                    update_dot_product_entry(last_selected_face, dp_value)
-        elif len(data) == 4:
-            current_dot_prod = round(struct.unpack('f', data)[0], 3)
-            print(f"Received 4-byte dot product: {current_dot_prod}")
-            print_to_console(f"Received 4-byte dot product: {current_dot_prod}")
-            highlight_closest(current_dot_prod)
-
+            print("Data sent to parse")
+            print_to_console("Data send to parse")
     except Exception as e:
         print(f"Error in notification handler: {e}")
         print_to_console(f"Error in notification handler: {e}")
 
     record_message_sent = False
 
-def highlight_closest(reference_dot):
-    if current_dot_prod is None:
-        print("current_dot_prod is None, cannot compute closest value.")
-        return
+def highlight_closest():
+    smallest_angle = min(abs(angles))
+    smallest_angle_index = angles.index(smallest_angle)
+    print(f"The closest face value to {current_xyz} is {smallest_angle_index}")
 
-    try:
-        dot_product_values = [float(var.get() or -100) for var in dot_product_vars]
-    except ValueError as e:
-        print(f"Invalid value encountered: {e}")
-        return
-
-    closest_value = min(dot_product_values, key=lambda x: abs(x - current_dot_prod))
-    print(f"The closest dot product value to {current_dot_prod} is {closest_value}")
-
-    for label, value in zip(entries_mode1['Dot Product'], dot_product_values):
-        if value == closest_value:
-            label.configure(fg_color="yellow")  # Highlight closest value
+    for label, value in zip(entries_mode1[' Angle'], angle_values):
+        if value == smallest_angle:
+            label.configure(fg_color="yellow")  # Highlight smallest value
             print("highlighted!")
         else:
             label.configure(fg_color="#e5e5ea")  # Reset color for other labels
@@ -316,9 +295,6 @@ def update_entries(face, data):
             print(f"Note widget updated with value: {note_widget.get()}")
 
 
-def update_dot_product_entry(face, dot_product_value):
-    col_index = faces.index(face)
-    dot_product_vars[col_index].set(dot_product_value)
 
 
 def indicate_limit(label):
@@ -373,7 +349,6 @@ def save_file():
                 file.write(f"#define Face {i+1}_X {accel_X[i]}\n")
                 file.write(f"#define Face {i+1}_Y {accel_Y[i]}\n")
                 file.write(f"#define Face {i+1}_Z {accel_Z[i]}\n")
-                file.write(f"#define Face {i+1}_DotProduct {dot_product_vars[i].get()}\n")
 
             # Write Notes for each mode separately
             for mode in ['MODE1', 'MODE2', 'MODE3']:
@@ -472,22 +447,8 @@ def import_file():
     file_path = filedialog.askopenfilename(filetypes=[("Header files", "*.h")])
     if file_path:
         data = parse_h_file(file_path)
-        calculate_and_store_dot_products()
     print("Finished import_file")  # Debugging statement
     print_to_console("Finished import_file")  # Debugging statement
-
-def calculate_and_store_dot_products():
-    for face in faces:
-        # Assuming unit_vector is defined and accessible
-        face_index = faces.index(face)
-        data = {
-            'X': float(accel_X[face_index]),
-            'Y': float(accel_Y[face_index]),
-            'Z': float(accel_Z[face_index])
-        }
-        dp_value = dot_product(face, data, unit_vector)
-        if dp_value is not None:
-            dot_product_vars[face_index].set(dp_value)
 
 
 def create_face_layout(parent_frame, entries):
@@ -509,18 +470,12 @@ def create_face_layout(parent_frame, entries):
         else:
             face_button.grid(row=7, column=col_index - 9, padx=5, pady=5, sticky='nsew')
 
-    for row_index, label in enumerate(['Note', 'X', 'Y', 'Z', 'Dot Product'], start=2):
+    for row_index, label in enumerate(['Note', 'X', 'Y', 'Z'], start=2):
         ctk.CTkLabel(master=parent_frame, text=label, font=('Bahnschrift SemiBold', 12)).grid(row=row_index, column=0,
                                                                                               padx=5, pady=5,
                                                                                               sticky='nsew')
         for col_index in range(1, 11):
-            if label == 'Dot Product':
-                dot_product_label = ctk.CTkLabel(master=parent_frame, textvariable=dot_product_vars[col_index - 1],
-                             font=('Bahnschrift SemiBold', 12))
-                dot_product_label.grid(row=row_index, column=col_index, padx=5, pady=5, sticky='nsew')
-                dot_product_label.grid_remove()  # Initially hidden
-                entries[label].append(dot_product_label)
-            elif label in ['X', 'Y', 'Z']:
+            if label in ['X', 'Y', 'Z']:
                 entry = ctk.CTkLabel(master=parent_frame, text="0", font=('Bahnschrift SemiBold', 12))
                 entry.grid(row=row_index, column=col_index, padx=5, pady=5, sticky='nsew')
                 entries[label].append(entry)
@@ -533,17 +488,12 @@ def create_face_layout(parent_frame, entries):
                 entry.insert(0, '0')
                 entries[label].append(entry)
 
-    for row_index, label in enumerate(['Note', 'X', 'Y', 'Z', 'Dot Product'], start=2):
+    for row_index, label in enumerate(['Note', 'X', 'Y', 'Z'], start=2):
         ctk.CTkLabel(master=parent_frame, text=label, font=('Bahnschrift SemiBold', 12)).grid(row=row_index + 6,
                                                                                               column=0, padx=5, pady=5,
                                                                                               sticky='nsew')
         for col_index in range(11, 21):
-            if label == 'Dot Product':
-                dot_product_label = ctk.CTkLabel(master=parent_frame, textvariable=dot_product_vars[col_index - 1], font=('Bahnschrift SemiBold', 12))
-                dot_product_label.grid(row=row_index + 6, column=col_index - 10, padx=5, pady=5, sticky='nsew')
-                dot_product_label.grid_remove()  # Initially hidden
-                entries[label].append(dot_product_label)
-            elif label in ['X', 'Y', 'Z']:
+            if label in ['X', 'Y', 'Z']:
                 entry = ctk.CTkLabel(master=parent_frame, text="0", font=('Bahnschrift SemiBold', 12))
                 entry.grid(row=row_index + 6, column=col_index - 10, padx=5, pady=5, sticky='nsew')
                 entries[label].append(entry)
@@ -700,12 +650,8 @@ async def toggle_dp_sensor():
         print("Toggle On. Active Tracking On")
         print_to_console("Toggle On. Active Tracking On")
 
-        await send_data(client, "Test")
+        await send_data(client, "Active Tracking")
     else:
-        # Turn off the tracking visual indications
-        for label in entries_mode1['Dot Product']:
-            label.configure(fg_color="#e5e5ea")
-
         print("Toggle Off switch. Active Tracking Off.")
         await asyncio.sleep(1)  # Check the toggle state every 1 second
 
@@ -740,10 +686,10 @@ button_import.grid(row=1, column=0, padx=10, pady=5)
 f_face = ctk.CTkFrame(master=frame, fg_color='transparent')
 f_face.grid(row=1, column=1, rowspan=4, sticky='nsew', padx=10, pady=10)
 
-entries = {label: [] for label in ['Note', 'X', 'Y', 'Z', 'Dot Product']}
+entries = {label: [] for label in ['Note', 'X', 'Y', 'Z']}
 create_face_layout(f_face, entries)
 
-row_labels = ['Note', 'X', 'Y', 'Z', 'Dot Product']
+row_labels = ['Note', 'X', 'Y', 'Z']
 last_selected_face = None
 
 tabview = CTkTabview(frame)
@@ -783,7 +729,7 @@ def update_face_buttons_and_entries(sides, tabs):
                 face_button.configure(state="normal" if col_index < sides else "disabled")
 
                 # Update the entries
-                for row_index, label in enumerate(['Note', 'X', 'Y', 'Z', 'Dot Product']):
+                for row_index, label in enumerate(['Note', 'X', 'Y', 'Z']):
                     entry_list = entries_A[label] if col_index < 10 else entries_B[label]
                     entry_col_index = col_index if col_index < 10 else col_index - 10
 
