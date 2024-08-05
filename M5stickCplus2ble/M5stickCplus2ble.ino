@@ -21,7 +21,6 @@ BLEMIDI_CREATE_INSTANCE(MIDI_DEVICE_NAME, MIDI);
 
 String receivedData;
 bool processDataFlag = false; // Flag to indicate processing of received data
-bool processActiveTracking= false; // Flag to indicate test status
 
 // BLE Service and Characteristics
 NimBLEServer *pServer;
@@ -65,17 +64,8 @@ class MyCallbacks : public NimBLECharacteristicCallbacks {
         Serial.println(receivedData);
 
         if (receivedData.equals("Record")) {
-          processDataFlag = true; // Set flag to process data
-        }
-        if (receivedData.equals("Active Tracking")){
-          processActiveTracking = true;
-          Serial.print("Processing Active Tracking");
-        }
-        if (receivedData.equals("End Tracking")){
-          processActiveTracking = false;
-          Serial.print("Ending Tracking");
-        }
-        else if (receivedData.equals("Disconnect")) {
+            processDataFlag = true; // Set flag to process data
+        } else if (receivedData.equals("Disconnect")) {
             disconnect();
             receivedData = "";  // Reset received data after processing
             processDataFlag = false; // Reset flag
@@ -156,11 +146,7 @@ void loop() {
         sendAccelData(); // Send accelerometer data to the client
         processDataFlag = false; // Reset flag after processing
     }
-    if (processActiveTracking){
-      active_tracking();
-      delay(10000);
-    }
-  }
+}
 
 void disconnect() {
     NimBLEDevice::stopAdvertising();
@@ -189,27 +175,6 @@ void sendAccelData() {
     pTxCharacteristic->notify(); // Notify client about the new data
     
     Serial.print("Sent accelerometer data: X=");
-    Serial.print(accelX);
-    Serial.print(", Y=");
-    Serial.print(accelY);
-    Serial.print(", Z=");
-    Serial.println(accelZ);
-}
-
-void active_tracking() {
-    float accelX, accelY, accelZ;
-    StickCP2.Imu.getAccelData(&accelX, &accelY, &accelZ);
-
-    byte data[12]; // 4 bytes for each float = 12 bytes total
-    memcpy(data, &accelX, sizeof(float));
-    memcpy(data + 4, &accelY, sizeof(float));
-    memcpy(data + 8, &accelZ, sizeof(float));
-
-    // Send the byte array to the BLE characteristic
-    pTxCharacteristic->setValue(data, sizeof(data));
-    pTxCharacteristic->notify(); // Notify client about the new data
-  
-    Serial.print("Active Tracking: ");
     Serial.print(accelX);
     Serial.print(", Y=");
     Serial.print(accelY);
