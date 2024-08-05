@@ -87,6 +87,11 @@ received_faces = []
 client = None
 debounce_timer = None
 
+class Face:
+    def __init__(self, accel_X, accel_Y, accel_Z):
+        self.accel_X = accel_X
+        self.accel_Y = accel_Y
+        self.accel_Z = accel_Z
 
 # Function Definitions----------------------------------------------------------------------------------------------
 def print_to_console(text):
@@ -213,20 +218,33 @@ def parse_accelerometer_data(data):
         print_to_console(f"Failed to parse data: {e}")
         return {}
 
-
-
 def angle_between(current_xyz):
-    print("Calculating...")
-    for i in faces:
+    global angles
+    angles = []  # Reset the list for new calculations
+    print("Calculating angle...")
+    current_xyz_array = numpy.array([current_xyz['X'], current_xyz['Y'], current_xyz['Z']])
+
+    for face in faces:
         face_index = faces.index(face)
-        data = {
-            'X': float(accel_X[face_index]),
-            'Y': float(accel_Y[face_index]),
-            'Z': float(accel_Z[face_index])
-        }
-        angle = math.acos(numpy.vecdot(face,current_xyz)/(numpy.linalg.vectornorm(face)*numpy.linalg.vector_norm(current_xyz)))
-        print(f"Angle between current orientation and Face {i} is:",round(angle,3))
-        highlight_closest()
+        face_array = numpy.array([float(accel_X[face_index]), float(accel_Y[face_index]), float(accel_Z[face_index])])
+
+        try:
+            angle = math.acos(
+                numpy.dot(face_array, current_xyz_array) /
+                (numpy.linalg.norm(face_array) * numpy.linalg.norm(current_xyz_array))
+            )
+            angles.append(angle)  # Store the calculated angle
+            print(f"Angle between current orientation and Face {face_index + 1} is:", round(angle, 3))
+            print_to_console(f"Angle between current orientation and Face {face_index + 1} is: {round(angle, 3)}")
+        except ValueError as e:
+            print(f"Failed to calculate angle for Face {face_index + 1}: {e}")
+            print_to_console(f"Failed to calculate angle for Face {face_index + 1}: {e}")
+
+    # Highlight the closest angle
+    highlight_closest()
+
+
+
 
 
 async def notification_handler(sender, data):
@@ -236,26 +254,36 @@ async def notification_handler(sender, data):
         print_to_console(f"Received data: {data}")
 
         if len(data) == 12:
-            parsed_data = parse_accelerometer_data(data)
+            await parse_accelerometer_data(data)
             print("Data sent to parse")
             print_to_console("Data send to parse")
+
     except Exception as e:
         print(f"Error in notification handler: {e}")
         print_to_console(f"Error in notification handler: {e}")
 
     record_message_sent = False
 
+
 def highlight_closest():
-    smallest_angle = min(abs(angles))
+    print("Highlighting...")
+    smallest_angle = min(angles)
     smallest_angle_index = angles.index(smallest_angle)
     print(f"The closest face value to {current_xyz} is {smallest_angle_index}")
 
-    for label, value in zip(entries_mode1[' Angle'], angle_values):
-        if value == smallest_angle:
-            label.configure(fg_color="yellow")  # Highlight smallest value
-            print("highlighted!")
-        else:
-            label.configure(fg_color="#e5e5ea")  # Reset color for other labels
+    # Reset highlight for all columns
+    for mode_entries in [entries_mode1, entries_mode2, entries_mode3]:
+        for key in ['X', 'Y', 'Z']:
+            # Reset color for all entries in the column
+            for i in range(len(mode_entries[key])):
+                mode_entries[key][i].configure(fg_color="#e5e5ea")
+
+    # Highlight the entire column for the closest face
+    for mode_entries in [entries_mode1, entries_mode2, entries_mode3]:
+        for key in ['X', 'Y', 'Z']:
+            label = mode_entries[key][smallest_angle_index]
+            label.configure(fg_color="yellow")  # Highlight the label
+            print(f"Highlighted {key} at index {smallest_angle_index}")
 
 def update_entries(face, data):
     col_index = faces.index(face)
@@ -650,10 +678,8 @@ async def toggle_dp_sensor():
         print("Toggle On. Active Tracking On")
         print_to_console("Toggle On. Active Tracking On")
 
-        await send_data(client, "Active Tracking")
-    else:
-        print("Toggle Off switch. Active Tracking Off.")
-        await asyncio.sleep(1)  # Check the toggle state every 1 second
+        await send_data(client, "Record")
+
 
 def run_toggle_dp_sensor():
     asyncio.run(toggle_dp_sensor())
