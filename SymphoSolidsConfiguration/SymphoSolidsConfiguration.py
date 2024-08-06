@@ -264,26 +264,32 @@ async def notification_handler(sender, data):
 
     record_message_sent = False
 
-
 def highlight_closest():
     print("Highlighting...")
     smallest_angle = min(angles)
     smallest_angle_index = angles.index(smallest_angle)
     print(f"The closest face value to {current_xyz} is {smallest_angle_index}")
 
-    # Reset highlight for all columns
-    for mode_entries in [entries_mode1, entries_mode2, entries_mode3]:
-        for key in ['X', 'Y', 'Z']:
-            # Reset color for all entries in the column
-            for i in range(len(mode_entries[key])):
-                mode_entries[key][i].configure(fg_color="#e5e5ea")
+    if test_toggle.get() == 1:
+        # Reset highlight for all columns
+        for mode_entries in [entries_mode1, entries_mode2, entries_mode3]:
+            for key in ['X', 'Y', 'Z']:
+                # Reset color for all entries in the column
+                for i in range(len(mode_entries[key])):
+                    mode_entries[key][i].configure(fg_color="#e5e5ea")
 
-    # Highlight the entire column for the closest face
-    for mode_entries in [entries_mode1, entries_mode2, entries_mode3]:
-        for key in ['X', 'Y', 'Z']:
-            label = mode_entries[key][smallest_angle_index]
-            label.configure(fg_color="yellow")  # Highlight the label
-            print(f"Highlighted {key} at index {smallest_angle_index}")
+        # Highlight the entire column for the closest face
+        for mode_entries in [entries_mode1, entries_mode2, entries_mode3]:
+            for key in ['X', 'Y', 'Z']:
+                label = mode_entries[key][smallest_angle_index]
+                label.configure(fg_color="yellow")  # Highlight the label
+                print(f"Highlighted {key} at index {smallest_angle_index}")
+
+        time.sleep(2)
+        print("Sending data")
+        # Schedule the async function to run
+        asyncio.create_task(send_data(client, "Record"))
+        print("Data sent")
 
 def update_entries(face, data):
     col_index = faces.index(face)
@@ -354,7 +360,6 @@ async def record_face(selected_face):
 
        last_selected_face = selected_face
 
-
 def save_file():
     file_path = filedialog.asksaveasfilename(
         initialdir="C://Users//1yahi//Desktop",
@@ -368,29 +373,42 @@ def save_file():
 
     try:
         with open(file_path, 'w') as file:
+            # Write header
             file.write("#ifndef CONFIG_H\n#define CONFIG_H\n\n")
-            file.write('#define DEVICE_NAME "blablabla"\n')
-            file.write('#define NUM_SIDES "20"\n\n\n')
+            file.write('#define DEVICE_NAME "ProtoType"\n')
+            file.write('#define NUM_SIDES 6\n\n')
 
-            # Write X, Y, Z and DotProduct values once for each face
-            for i in range(20):
-                file.write(f"#define Face {i+1}_X {accel_X[i]}\n")
-                file.write(f"#define Face {i+1}_Y {accel_Y[i]}\n")
-                file.write(f"#define Face {i+1}_Z {accel_Z[i]}\n")
+            # Define struct
+            file.write("struct FaceConfig {\n")
+            file.write("    float x;\n")
+            file.write("    float y;\n")
+            file.write("    float z;\n")
+            file.write("    byte note1;\n")
+            file.write("    byte note2;\n")
+            file.write("    byte note3;\n")
+            file.write("};\n\n")
 
-            # Write Notes for each mode separately
-            for mode in ['MODE1', 'MODE2', 'MODE3']:
-                for i in range(20):
-                    file.write(f"#define {mode}_Face {i+1}_NOTE {entries_mode1['Note'][i].get() if mode == 'MODE1' else entries_mode2['Note'][i].get() if mode == 'MODE2' else entries_mode3['Note'][i].get()}\n")
+            # Write face configurations
+            file.write("const FaceConfig faceConfigs[] = {\n")
+            for i in range(6):  # Adjust the range according to the number of faces
+                x = accel_X[i]
+                y = accel_Y[i]
+                z = accel_Z[i]
+                note1 = entries_mode1['Note'][i].get()
+                note2 = entries_mode2['Note'][i].get()
+                note3 = entries_mode3['Note'][i].get()
+                file.write(f"    {{{x}, {y}, {z}, {note1}, {note2}, {note3}}}, // Face {i+1}\n")
+            file.write("};\n\n")
 
-            file.write("\n#endif // CONFIG_H\n")
+            # Calculate and write total faces
+            file.write("const int totalFaces = sizeof(faceConfigs) / sizeof(faceConfigs[0]);\n\n")
+            file.write("#endif // CONFIG_H\n")
 
         print("File saved successfully")
         print_to_console("File saved successfully")
     except Exception as e:
         print(f"Failed to save file: {e}")
         print_to_console(f"Failed to save file: {e}")
-
 
 def restrict_space_key(event):
     if event.keysym == 'space':
@@ -606,7 +624,7 @@ button_up = ctk.CTkButton(
     ],
     fg_color='#6ac4dc', hover_color='#008299', font=('Bahnschrift SemiBold', 12)
 )
-button_up.grid(row=1, column=0, ipadx=5, ipady=5)
+button_up.grid(row=1, column=2, ipadx=5, ipady=5)
 
 sides_entry = ctk.CTkLabel(f_controls, textvariable=number_of_controls, font=('Bahnschrift SemiBold', 27),
                            text_color="#302c2c")
@@ -621,56 +639,14 @@ button_down = ctk.CTkButton(
     ],
     fg_color='#6ac4dc', hover_color='#008299', font=('Bahnschrift SemiBold', 12)
 )
-button_down.grid(row=1, column=2, ipadx=5, ipady=5)
+button_down.grid(row=1, column=0, ipadx=5, ipady=5)
 
 check_var = ctk.StringVar(value="off")  #set checkbox as off
 
 
-def hide_dp():
-    # Loop over the three modes
-    for entries in [entries_mode1, entries_mode2, entries_mode3]:
-        # First set of 10 columns
-        for col_index in range(1, 11):
-            entries['Dot Product'][col_index - 1].grid_forget()
-
-        # Second set of 10 columns
-        for col_index in range(11, 21):
-            entries['Dot Product'][col_index - 1].grid_forget()
-
-    print("DP Hidden")
-    print_to_console("DP Hidden")
-
-
-def show_dp():
-    # Loop over the three modes
-    for entries in [entries_mode1, entries_mode2, entries_mode3]:
-        # First set of 10 columns
-        for col_index in range(1, 11):
-            entries['Dot Product'][col_index - 1].grid(row=6, column=col_index, padx=5, pady=5, sticky='nsew')
-
-        # Second set of 10 columns
-        for col_index in range(11, 21):
-            entries['Dot Product'][col_index - 1].grid(row=12, column=col_index - 10, padx=5, pady=5, sticky='nsew')
-
-    print("DP Visible")
-    print_to_console("DP Visible")
-
-
-def checkbox_event():
-    print("checkbox toggled, current value:", check_var.get())
-    if check_var.get() == "on":
-        show_dp()
-    else:
-        hide_dp()
-
-
-checkbox = ctk.CTkCheckBox(master=f_controls, text="Show Dot Product", command=checkbox_event,
-                           variable=check_var, onvalue="on", offvalue="off", font=('Bahnschrift SemiBold', 10) )
-checkbox.grid(row=2, column=0, columnspan=1, sticky='nw')
-
 test_toggle = ctk.CTkSwitch(f_controls, text="Highlight closest", font=('Bahnschrift SemiBold', 10), height=25, width=60,
                             fg_color='#6ac4dc', text_color="#302c2c")
-test_toggle.grid(row=2, column=2, columnspan=1, padx=5, pady=5, sticky='ne')
+test_toggle.grid(row=2, column=1, columnspan=1, padx=5, pady=5, sticky='ne')
 
 
 async def toggle_dp_sensor():
@@ -679,6 +655,13 @@ async def toggle_dp_sensor():
         print_to_console("Toggle On. Active Tracking On")
 
         await send_data(client, "Record")
+    else:
+        # Reset highlight for all columns
+        for mode_entries in [entries_mode1, entries_mode2, entries_mode3]:
+            for key in ['X', 'Y', 'Z']:
+                # Reset color for all entries in the column
+                for i in range(len(mode_entries[key])):
+                    mode_entries[key][i].configure(fg_color="#e5e5ea")
 
 
 def run_toggle_dp_sensor():
@@ -703,8 +686,6 @@ button_save.grid(row=0, column=0, padx=10, pady=5)
 button_import = ctk.CTkButton(master=f_file, height=25, width=280, text="Import File", fg_color='#6ac4dc',
                               hover_color='#008299', text_color="#302c2c", command=import_file)
 button_import.grid(row=1, column=0, padx=10, pady=5)
-
-
 
 
 
