@@ -18,6 +18,16 @@ from bleak.exc import BleakError, BleakDeviceNotFoundError
 WRITE_CHARACTERISTIC_UUID = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
 NOTIFICATION_CHARACTERISTIC_UUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
 
+
+# Colot Lib
+
+green = '#aaf255'
+L_grey = '#f2f2f7' #root bg
+D_gray = '#e5e5ea' #frame_bg
+blue = '#4a26fd'
+L_teal = '#6ac4dc'
+D_teal = '#008299'
+
 # GUI Root -----------------------------------------------------------------------------------------------------------
 root = ctk.CTk()
 root.geometry("1030x770")
@@ -33,7 +43,7 @@ root.aspect(1, 1, 1, 1)
 root.after(201, lambda: root.iconbitmap(
     'C:/Users/1yahi/Desktop/Dr Chan Summer 24/Musical instruments/Accessory Code/music.ico'))
 
-frame = ctk.CTkFrame(root, fg_color="#f2f2f7")
+frame = ctk.CTkFrame(root, fg_color=L_grey)
 frame.grid(row=0, column=0, sticky='nsew')
 frame.grid_rowconfigure(0, weight=1)
 frame.grid_rowconfigure(1, weight=100)
@@ -45,7 +55,7 @@ frame.grid_columnconfigure(0, weight=1)
 frame.grid_columnconfigure(1, weight=1000)
 
 # Console Frame-----------------------------------------------------------------------------------------------------------
-f_console = ctk.CTkFrame(master=frame, fg_color="#f2f2f7")
+f_console = ctk.CTkFrame(master=frame, fg_color=L_grey)
 f_console.grid(row=5, column=0, padx=25, pady=25, columnspan=2, sticky='nsew')
 
 label_console = ctk.CTkLabel(master=f_console, text='Serial Monitor', font=('Bahnschrift SemiBold', 12))
@@ -183,7 +193,7 @@ def disconnect():
     print_to_console(f"Disconnected")
 
     # Reset the button back to original state
-    button_connect.configure(text="Connect", command=confirm_selection, fg_color='#6ac4dc', hover_color='#24cc44')
+    button_connect.configure(text="Connect", command=confirm_selection, fg_color=L_teal, hover_color='#24cc44')
 
 
 def confirm_sides(sides):
@@ -519,8 +529,8 @@ def create_face_layout(parent_frame, entries):
             command=lambda v=face: asyncio.run_coroutine_threadsafe(record_face(v), loop),
             height=25,
             width=50,
-            fg_color="#6ac4dc",
-            text_color="#302c2c",
+            fg_color=L_teal,
+            text_color="white",
             hover_color="#008299",
             font=('Bahnschrift SemiBold', 10),
             text_color_disabled='grey'
@@ -531,12 +541,12 @@ def create_face_layout(parent_frame, entries):
             face_button.grid(row=7, column=col_index - 9, padx=5, pady=5, sticky='nsew')
 
     for row_index, label in enumerate(['Note', 'X', 'Y', 'Z'], start=2):
-        ctk.CTkLabel(master=parent_frame, text=label, font=('Bahnschrift SemiBold', 12)).grid(row=row_index, column=0,
+        ctk.CTkLabel(master=parent_frame, text=label, font=('Cascadia Code', 12)).grid(row=row_index, column=0,
                                                                                               padx=5, pady=5,
                                                                                               sticky='nsew')
         for col_index in range(1, 11):
             if label in ['X', 'Y', 'Z']:
-                entry = ctk.CTkLabel(master=parent_frame, text="0", font=('Bahnschrift SemiBold', 12))
+                entry = ctk.CTkLabel(master=parent_frame, text="0", font=('Cascadia Code', 12))
                 entry.grid(row=row_index, column=col_index, padx=5, pady=5, sticky='nsew')
                 entries[label].append(entry)
             else:
@@ -549,12 +559,12 @@ def create_face_layout(parent_frame, entries):
                 entries[label].append(entry)
 
     for row_index, label in enumerate(['Note', 'X', 'Y', 'Z'], start=2):
-        ctk.CTkLabel(master=parent_frame, text=label, font=('Bahnschrift SemiBold', 12)).grid(row=row_index + 6,
+        ctk.CTkLabel(master=parent_frame, text=label, font=('Cascadia Code', 12)).grid(row=row_index + 6,
                                                                                               column=0, padx=5, pady=5,
                                                                                               sticky='nsew')
         for col_index in range(11, 21):
             if label in ['X', 'Y', 'Z']:
-                entry = ctk.CTkLabel(master=parent_frame, text="0", font=('Bahnschrift SemiBold', 12))
+                entry = ctk.CTkLabel(master=parent_frame, text="0", font=('Cascadia Code', 12))
                 entry.grid(row=row_index + 6, column=col_index - 10, padx=5, pady=5, sticky='nsew')
                 entries[label].append(entry)
             else:
@@ -571,8 +581,11 @@ def create_face_layout(parent_frame, entries):
 f_title = ctk.CTkFrame(master=frame, fg_color='transparent')
 f_title.grid(row=0, column=0, columnspan=2)
 
-header = ctk.CTkLabel(master=f_title, text="SymphoSolids: Configuration", font=('Bahnschrift SemiBold', 42))
+header = ctk.CTkLabel(master=f_title, text="SymphoSolids", font=('Bahnschrift SemiBold', 42))
 header.grid(row=0, column=0, columnspan=2)
+
+sub_header = ctk.CTkLabel(master=f_title, text="Configuration", font=('Bahnschrift SemiBold', 32))
+sub_header.grid(row=1, column=0, columnspan=2)
 
 # Device Manager Frame-------------------------------------------------------------------------------------
 f_device_manager = ctk.CTkFrame(master=frame, fg_color="#e5e5ea")
@@ -583,7 +596,7 @@ label.grid(row=0, column=0, padx=25, pady=5)
 
 button_scan = ctk.CTkButton(f_device_manager, height=25, width=270, text="Scan for Devices",
                             command=lambda: asyncio.run_coroutine_threadsafe(scan_devices(), loop),
-                            fg_color='#6ac4dc', hover_color='#008299', text_color="#302c2c")
+                            fg_color=L_teal, hover_color=D_teal, text_color="#302c2c")
 button_scan.grid(row=1, column=0, padx=25, pady=5)
 
 options = ["no devices available"]
@@ -592,11 +605,11 @@ device_menu = ctk.CTkOptionMenu(f_device_manager, height=25, width=270, variable
 device_menu.grid(row=2, column=0, padx=25, pady=5)
 
 button_connect = ctk.CTkButton(f_device_manager, text="Connect", height=25, width=270, command=confirm_selection,
-                               fg_color='#6ac4dc', hover_color='#24cc44', text_color="#302c2c")
+                               fg_color=L_teal, hover_color='#24cc44', text_color="#302c2c")
 button_connect.grid(row=3, column=0, padx=25, pady=5)
 
 button_disconnect = ctk.CTkButton(f_device_manager, text="Disconnect", height=25, width=270, command=disconnect,
-                                  fg_color='#6ac4dc', hover_color='#ff375f', text_color="#302c2c")
+                                  fg_color=L_teal, hover_color='#ff375f', text_color="#302c2c")
 button_disconnect.grid(row=4, column=0, padx=25, pady=5)
 
 for widget in f_device_manager.winfo_children():
@@ -637,33 +650,33 @@ sides_entry.grid(row=1, column=1, padx=0, pady=(0, 10), sticky='new')
 
 # Down button
 button_down = ctk.CTkButton(
-    f_controls, text="▼", height=12, width=15,
+    f_controls, text="▼", height=30, width=45,
     command=lambda: [
         number_of_controls.set(max(4, number_of_controls.get() - 1)),  # Ensure the value doesn't go below 4
         confirm_sides(number_of_controls.get()),
         indicate_limit(sides_entry) if number_of_controls.get() == 4 else None
     ],
-    fg_color='#6ac4dc', hover_color='#008299', font=('Bahnschrift SemiBold', 12)
+    fg_color=L_teal, hover_color=D_teal, font=('Bahnschrift SemiBold', 12)
 )
 button_down.grid(row=1, column=0, sticky='nsw')
 
 # Up button
 button_up = ctk.CTkButton(
-    f_controls, text="▲", height=12, width=15,
+    f_controls, text="▲", height=30, width=45,
     command=lambda: [
         number_of_controls.set(min(20, number_of_controls.get() + 1)),  # Ensure the value doesn't go above 20
         confirm_sides(number_of_controls.get()),
         indicate_limit(sides_entry) if number_of_controls.get() == 20 else None
     ],
-    fg_color='#6ac4dc', hover_color='#008299', font=('Bahnschrift SemiBold', 12)
+    fg_color=L_teal, hover_color=D_teal, font=('Bahnschrift SemiBold', 12)
 )
 button_up.grid(row=1, column=2, sticky='nsw')
 
 
 # Toggle switch
 check_var = ctk.StringVar(value="off")  # Set checkbox as off
-test_toggle = ctk.CTkSwitch(f_controls, text="Highlight closest", font=('Bahnschrift SemiBold', 10), height=25, width=60,
-                            fg_color='#6ac4dc', text_color="#302c2c")
+test_toggle = ctk.CTkSwitch(f_controls, text="Active Tracking", font=('Bahnschrift SemiBold', 10), height=25, width=60,
+                            fg_color=L_teal, text_color="#302c2c", switch_width=100,switch_height=30, progress_color="#6ac4dc")
 test_toggle.grid(row=3, column=1, pady=(5, 0))
 
 
@@ -697,12 +710,12 @@ for widget in f_controls.winfo_children():
 f_file = ctk.CTkFrame(master=frame, fg_color="#e5e5ea")
 f_file.grid(row=4, column=0, padx=10, pady=5, sticky='nsw')
 
-button_save = ctk.CTkButton(master=f_file, height=25, width=280, text="Save to File", fg_color='#6ac4dc',
-                            hover_color='#008299', text_color="#302c2c", command=save_file)
+button_save = ctk.CTkButton(master=f_file, height=25, width=280, text="Save to File", fg_color=L_teal,
+                            hover_color=D_teal, text_color="#302c2c", command=save_file)
 button_save.grid(row=0, column=0, padx=10, pady=5)
 
-button_import = ctk.CTkButton(master=f_file, height=25, width=280, text="Import File", fg_color='#6ac4dc',
-                              hover_color='#008299', text_color="#302c2c", command=import_file)
+button_import = ctk.CTkButton(master=f_file, height=25, width=280, text="Import File", fg_color=L_teal,
+                              hover_color=D_teal, text_color="#302c2c", command=import_file)
 button_import.grid(row=1, column=0, padx=10, pady=5)
 
 
@@ -717,7 +730,7 @@ create_face_layout(f_face, entries)
 row_labels = ['Note', 'X', 'Y', 'Z']
 last_selected_face = None
 
-tabview = CTkTabview(frame)
+tabview = CTkTabview(frame, segmented_button_fg_color=blue, segmented_button_unselected_color=blue, fg_color=D_gray)
 tabview.grid(row=1, column=1, rowspan=4, sticky='nsew', padx=10, pady=10)
 
 # Create three tabs
