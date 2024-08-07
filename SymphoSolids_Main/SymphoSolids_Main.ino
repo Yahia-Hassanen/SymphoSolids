@@ -8,10 +8,12 @@ Date: Summer 2024
 #include <BLEMIDI_Transport.h>
 #include <M5StickCPlus2.h>
 #include <hardware/BLEMIDI_ESP32_NimBLE.h>
-#include "Configuration.h"
+#include "try.h"
+#include <cmath> 
+
 
 #define MIDI_CHANNEL_NO 1
-#define MIDI_DEVICE_NAME "DICE"
+#define MIDI_DEVICE_NAME DEVICE_NAME
 
 String menuItems[] = {"Normal Mode", "Musical Mode", "Info"};
 int currentSelection = 0;
@@ -43,6 +45,7 @@ void OnDisconnected() {
 void OnNoteOn(byte channel, byte note, byte velocity) {}
 void OnNoteOff(byte channel, byte note, byte velocity) {}
 
+
 void Normal_Mode() {
     StickCP2.Lcd.fillScreen(BLACK);
     while (true) {
@@ -54,13 +57,22 @@ void Normal_Mode() {
         StickCP2.Lcd.setTextColor(MAGENTA);
         StickCP2.Lcd.setTextSize(2);
 
-        float maxDotProduct = -1.0;
+        float minAngle = M_PI; // Initialize to max angle in radians
         int matchedFace = -1;
 
         for (int i = 0; i < totalFaces; i++) {
+            // Dot product of current vector and face vector
             float dotProduct = accX * faceConfigs[i].x + accY * faceConfigs[i].y + accZ * faceConfigs[i].z;
-            if (dotProduct > maxDotProduct) {
-                maxDotProduct = dotProduct;
+
+            // Magnitudes of the vectors
+            float magnitudeCurrent = sqrt(accX * accX + accY * accY + accZ * accZ);
+            float magnitudeFace = sqrt(faceConfigs[i].x * faceConfigs[i].x + faceConfigs[i].y * faceConfigs[i].y + faceConfigs[i].z * faceConfigs[i].z);
+
+            // Calculate the angle
+            float angle = acos(dotProduct / (magnitudeCurrent * magnitudeFace));
+
+            if (angle < minAngle) {
+                minAngle = angle;
                 matchedFace = i;
             }
         }
@@ -93,19 +105,28 @@ void Musical_Mode() {
         StickCP2.Lcd.setTextColor(MAGENTA);
         StickCP2.Lcd.setTextSize(2);
 
-        float maxDotProduct = -1.0;
+        float minAngle = M_PI; // Initialize to max angle in radians
         int matchedFace = -1;
 
         for (int i = 0; i < totalFaces; i++) {
+            // Dot product of current vector and face vector
             float dotProduct = accX * faceConfigs[i].x + accY * faceConfigs[i].y + accZ * faceConfigs[i].z;
-            if (dotProduct > maxDotProduct) {
-                maxDotProduct = dotProduct;
+
+            // Magnitudes of the vectors
+            float magnitudeCurrent = sqrt(accX * accX + accY * accY + accZ * accZ);
+            float magnitudeFace = sqrt(faceConfigs[i].x * faceConfigs[i].x + faceConfigs[i].y * faceConfigs[i].y + faceConfigs[i].z * faceConfigs[i].z);
+
+            // Calculate the angle
+            float angle = acos(dotProduct / (magnitudeCurrent * magnitudeFace));
+
+            if (angle < minAngle) {
+                minAngle = angle;
                 matchedFace = i;
             }
         }
 
         if (matchedFace != -1) {
-            note = faceConfigs[matchedFace].note;
+            note = faceConfigs[matchedFace].note1;
             StickCP2.Lcd.printf("Face %d is up", matchedFace + 1);
         } else {
             StickCP2.Lcd.println("Undetermined");
