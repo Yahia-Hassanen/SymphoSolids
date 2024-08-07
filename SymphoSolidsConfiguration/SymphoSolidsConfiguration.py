@@ -375,8 +375,8 @@ def save_file():
         with open(file_path, 'w') as file:
             # Write header
             file.write("#ifndef CONFIG_H\n#define CONFIG_H\n\n")
-            file.write('#define DEVICE_NAME "ProtoType"\n')
-            file.write('#define NUM_SIDES 6\n\n')
+            file.write(f'#define DEVICE_NAME "{name_entry.get()}"\n')
+            file.write(f'#define NUM_SIDES "{number_of_controls.get()}"\n\n')
 
             # Define struct
             file.write("struct FaceConfig {\n")
@@ -390,7 +390,7 @@ def save_file():
 
             # Write face configurations
             file.write("const FaceConfig faceConfigs[] = {\n")
-            for i in range(6):  # Adjust the range according to the number of faces
+            for i in range(number_of_controls.get()):  # Adjust the range according to the number of faces
                 x = accel_X[i]
                 y = accel_Y[i]
                 z = accel_Z[i]
@@ -432,60 +432,74 @@ def parse_h_file(file_path):
     print("Initiating parse_h_file")  # Debugging statement
 
     # Initialize dictionaries to store accelerometer data
-    modes = {'MODE1': {'X': [0] * 25, 'Y': [0] * 25, 'Z': [0] * 25, 'NOTE': ['0'] * 20},
-             'MODE2': {'X': [0] * 25, 'Y': [0] * 25, 'Z': [0] * 25, 'NOTE': ['0'] * 20},
-             'MODE3': {'X': [0] * 25, 'Y': [0] * 25, 'Z': [0] * 25, 'NOTE': ['0'] * 20}}
+    modes = {'MODE1': {'X': [0] * 20, 'Y': [0] * 20, 'Z': [0] * 20, 'NOTE': ['0'] * 20},
+             'MODE2': {'X': [0] * 20, 'Y': [0] * 20, 'Z': [0] * 20, 'NOTE': ['0'] * 20},
+             'MODE3': {'X': [0] * 20, 'Y': [0] * 20, 'Z': [0] * 20, 'NOTE': ['0'] * 20}}
 
-    # Regular expression to match lines with data
-    pattern = re.compile(r'#define\s+(\w+)_Face\s+(\d+)_([XYZ]|NOTE)\s+([0-9.-]+)')
+    device_name = None
+    num_sides = None
+    face_configs = []
 
     with open(file_path, 'r') as file:
+        inside_face_configs = False
+
         for line in file:
-            match = pattern.match(line)
-            if match:
-                mode = match.group(1)
-                face_num = int(match.group(2))
-                key = match.group(3)
-                value = match.group(4)
+            line = line.strip()
+            print("Processing line:", line)  # Debugging statement
 
-                print(f"Matched - Mode: {mode}, Face Number: {face_num}, Key: {key}, Value: {value}")
-
-                if mode in modes:
-                    if key in modes[mode]:
-                        modes[mode][key][face_num - 1] = value
-                    else:
-                        print("Unexpected key:", key)
-                else:
-                    print("Unexpected mode:", mode)
-            elif '#define' in line and 'DEVICE_NAME' in line:
+            # Parse device name
+            if '#define DEVICE_NAME' in line:
                 device_name = line.split()[2].strip('"')
                 print("Device Name:", device_name)
-                name_entry.delete(0, 'end')  # Clear the current value
-                name_entry.insert(0, device_name)  # Insert the new value
-            elif '#define' in line and 'NUM_SIDES' in line:
-                rec_sides=line.split()[2].strip('"')
-                print("Number of Sides:", rec_sides)
-                confirm_sides(rec_sides)
-                print("Called confirm_sides")
-                number_of_controls.set(rec_sides)
-                print("Counter updated")
+                # name_entry.delete(0, 'end')  # Clear the current value
+                # name_entry.insert(0, device_name)  # Insert the new value
 
+            # Parse number of sides
+            elif '#define NUM_SIDES' in line:
+                num_sides = int(line.split()[2].strip('"'))  # Convert to int for later use
+                print("Number of Sides:", num_sides)
+                # confirm_sides(num_sides)
+                # number_of_controls.set(num_sides)
+
+            # Detect the start of face configurations
+            elif 'const FaceConfig faceConfigs[]' in line:
+                print("Enter FaceConfig")
+                inside_face_configs = True
+                continue
+
+            # Parse face configurations
+            elif inside_face_configs and line.startswith('{') and line.endswith('},'):
+                print("Parsing face configuration line:", line)  # Debugging statement
+                line = line.strip('{};,')
+                values = line.split(', ')
+
+                if len(values) == 6:
+                    face_config = {
+                        'X': float(values[0]),
+                        'Y': float(values[1]),
+                        'Z': float(values[2]),
+                        'NOTE': [int(values[3]), int(values[4]), int(values[5])]  # Store all Note values
+                    }
+                    face_configs.append(face_config)
+                else:
+                    print("Unexpected number of values in face configuration line")
             else:
-                print("Skipping line:", line.strip())
+                print("Skipping line:", line)
 
     print("Finished parsing file")  # Debugging statement
 
     # Process all faces and modes
     for mode in modes:
-        for face_num in range(1, 21):  # Faces 1 to 20
+        mode_index = int(mode[-1]) - 1  # Convert mode (1, 2, 3) to index (0, 1, 2)
+        for face_num, config in enumerate(face_configs, start=1):  # Faces 1 to num_sides
             face = f'Face {face_num}'
-            data = {axis: modes[mode][axis][face_num - 1] for axis in ['X', 'Y', 'Z']}
-            data['Note'] = modes[mode]['NOTE'][face_num - 1]
+            data = {axis: config[axis] for axis in ['X', 'Y', 'Z']}
+            data['Note'] = config['NOTE'][mode_index]  # Select the Note value based on the mode
 
             # Debugging: print the data to be passed to update_entries
             print(f"Updating entries for {face} in {mode} with data: {data}")
-
             update_entries(face, data)
+
 
 def import_file():
     print("Initiating import_file")  # Debugging statement
@@ -606,32 +620,24 @@ for widget in f_name.winfo_children():
 
 
 # Controls Frame (Functions and Widgets) -------------------------------------------------------------------------------------
-frame.grid_rowconfigure(3, weight=1)
-frame.grid_columnconfigure(0, weight=1)
 
 f_controls = ctk.CTkFrame(master=frame, fg_color="#e5e5ea")
 f_controls.grid(row=3, column=0, sticky='ew', padx=10, pady=10)
 
+# Label
 label_2 = ctk.CTkLabel(master=f_controls, text='Controls', font=('Bahnschrift SemiBold', 16), text_color="#302c2c")
-label_2.grid(row=0, column=0, columnspan=3, padx=10, pady=5)
+label_2.grid(row=0, column=1, sticky='new', pady=5)
 
-button_up = ctk.CTkButton(
-    f_controls, text="▲", height=12, width=12,
-    command=lambda: [
-        number_of_controls.set(min(25, number_of_controls.get() + 1)),  # Ensure the value doesn't go above 20
-        confirm_sides(number_of_controls.get()),
-        indicate_limit(sides_entry) if number_of_controls.get() == 20 else None
-    ],
-    fg_color='#6ac4dc', hover_color='#008299', font=('Bahnschrift SemiBold', 12)
-)
-button_up.grid(row=1, column=2, ipadx=5, ipady=5)
 
+# Number display
 sides_entry = ctk.CTkLabel(f_controls, textvariable=number_of_controls, font=('Bahnschrift SemiBold', 27),
                            text_color="#302c2c")
-sides_entry.grid(row=1, column=1, padx=10, pady=5)
+sides_entry.grid(row=1, column=1, padx=0, pady=(0, 10), sticky='new')
 
+
+# Down button
 button_down = ctk.CTkButton(
-    f_controls, text="▼", height=12, width=12,
+    f_controls, text="▼", height=12, width=15,
     command=lambda: [
         number_of_controls.set(max(4, number_of_controls.get() - 1)),  # Ensure the value doesn't go below 4
         confirm_sides(number_of_controls.get()),
@@ -639,14 +645,26 @@ button_down = ctk.CTkButton(
     ],
     fg_color='#6ac4dc', hover_color='#008299', font=('Bahnschrift SemiBold', 12)
 )
-button_down.grid(row=1, column=0, ipadx=5, ipady=5)
+button_down.grid(row=1, column=0, sticky='nsw')
 
-check_var = ctk.StringVar(value="off")  #set checkbox as off
+# Up button
+button_up = ctk.CTkButton(
+    f_controls, text="▲", height=12, width=15,
+    command=lambda: [
+        number_of_controls.set(min(20, number_of_controls.get() + 1)),  # Ensure the value doesn't go above 20
+        confirm_sides(number_of_controls.get()),
+        indicate_limit(sides_entry) if number_of_controls.get() == 20 else None
+    ],
+    fg_color='#6ac4dc', hover_color='#008299', font=('Bahnschrift SemiBold', 12)
+)
+button_up.grid(row=1, column=2, sticky='nsw')
 
 
+# Toggle switch
+check_var = ctk.StringVar(value="off")  # Set checkbox as off
 test_toggle = ctk.CTkSwitch(f_controls, text="Highlight closest", font=('Bahnschrift SemiBold', 10), height=25, width=60,
                             fg_color='#6ac4dc', text_color="#302c2c")
-test_toggle.grid(row=2, column=1, columnspan=1, padx=5, pady=5, sticky='ne')
+test_toggle.grid(row=3, column=1, pady=(5, 0))
 
 
 async def toggle_dp_sensor():
