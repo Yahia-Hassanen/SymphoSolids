@@ -27,7 +27,7 @@ D_gray = '#e5e5ea' #frame_bg
 blue = '#4a26fd'
 L_teal = '#6ac4dc'
 D_teal = '#008299'
-
+Red = '#ff375f'
 # GUI Root -----------------------------------------------------------------------------------------------------------
 root = ctk.CTk()
 root.geometry("1030x770")
@@ -56,7 +56,7 @@ frame.grid_columnconfigure(1, weight=1000)
 
 # Console Frame-----------------------------------------------------------------------------------------------------------
 f_console = ctk.CTkFrame(master=frame, fg_color=L_grey)
-f_console.grid(row=5, column=0, padx=25, pady=25, columnspan=2, sticky='nsew')
+f_console.grid(row=6, column=0, padx=25, pady=25, columnspan=2, sticky='nsew')
 
 label_console = ctk.CTkLabel(master=f_console, text='Serial Monitor', font=('Bahnschrift SemiBold', 12))
 label_console.grid(row=0, column=0, sticky='nswe')
@@ -111,32 +111,35 @@ def print_to_console(text):
     console_text.see('end')  # Auto-scroll to the end
 
 
-def create_popup(msg):
+def create_popup(msg,color, movement):
     popup = ctk.CTkToplevel(root)
     popup.title("Scanning for Devices")
     popup.geometry("300x100")
     popup.transient(root)
     popup.grab_set()
 
-    label = ctk.CTkLabel(popup, text=msg, font=('Bahnschrift SemiBold', 16))
+    label = ctk.CTkLabel(popup, text=msg, font=('Bahnschrift SemiBold', 16), text_color=color)
     label.pack(pady=20)
 
-    def update_label():
+    def update_window():
         dots = itertools.cycle(["", ".", "..", "..."])
 
-        def run_update():
-            if popup.winfo_exists():
+        def run_movement():
+            if popup.winfo_exists() and movement:  # Check if movement is True
                 label.configure(text=f"{msg}{next(dots)}")
-                root.after(500, run_update)  # Schedule the next update
+                root.after(500, run_movement)  # Schedule the next update
 
-        run_update()
+        run_movement()
 
-    threading.Thread(target=update_label, daemon=True).start()
+    if movement:
+        update_window()
+
+    threading.Thread(target=update_window, daemon=True).start()
     return popup
 
 
 async def scan_devices():
-    popup = create_popup("Scanning")
+    popup = create_popup("Scanning", green,True )
     try:
         print("Scanning for devices...")
         print_to_console("Scanning for devices...")
@@ -338,8 +341,35 @@ def update_entries(face, data):
             note_widget.insert(0, str(note_value))
             print(f"Note widget updated with value: {note_widget.get()}")
 
+def confirm():  #confirmation message box
+    resp = messagebox.askyesno(title="Confirmation window", message="Are you sure?", detail="Reset cannot be undone",
+                               icon='question', default='no')
+    return resp
 
+def reset_entries():
+    resp = confirm()
+    if resp:
+        # Loop through each mode's entries
+        for entries in [entries_mode1, entries_mode2, entries_mode3]:
+            for key in ['X', 'Y', 'Z']:
+                # Set all entries to "0"
+                for label in entries[key]:
+                    label.configure(text="0")
 
+            for key in entries:
+                if key == 'Note':
+                    for entry in entries[key]:
+                        entry.configure(state="normal")
+                        entry.delete(0, 'end')
+                        entry.insert(0, '0')
+
+        # Reset the accel_X, accel_Y, and accel_Z lists to "0"
+        global accel_X, accel_Y, accel_Z
+        accel_X = ["0"] * len(accel_X)
+        accel_Y = ["0"] * len(accel_Y)
+        accel_Z = ["0"] * len(accel_Z)
+    else:
+        pass
 
 def indicate_limit(label):
     def update_color():
@@ -371,54 +401,60 @@ async def record_face(selected_face):
        last_selected_face = selected_face
 
 def save_file():
-    file_path = filedialog.asksaveasfilename(
-        initialdir="C://Users//1yahi//Desktop",
-        defaultextension=".h",
-        filetypes=[("Header files", "*.h"), ("All files", "*.*")]
-    )
+    if len(name_entry.get())==0:
+        create_popup("Enter Device Name", Red, False)
+        time.sleep(3)
+        popup.destroy()
 
-    if not file_path:
-        print("Save operation cancelled")
-        return
+    else:
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".h",
+            initialfile="UntitledConfigData",
+            filetypes=[("Header files", "*.h"), ("All files", "*.*")]
+        )
 
-    try:
-        with open(file_path, 'w') as file:
-            # Write header
-            file.write("#ifndef CONFIG_H\n#define CONFIG_H\n\n")
-            file.write(f'#define DEVICE_NAME "{name_entry.get()}"\n')
-            file.write(f'#define NUM_SIDES "{number_of_controls.get()}"\n\n')
+        if not file_path:
+            print("Save operation cancelled")
+            return
 
-            # Define struct
-            file.write("struct FaceConfig {\n")
-            file.write("    float x;\n")
-            file.write("    float y;\n")
-            file.write("    float z;\n")
-            file.write("    byte note1;\n")
-            file.write("    byte note2;\n")
-            file.write("    byte note3;\n")
-            file.write("};\n\n")
+        try:
+            with open(file_path, 'w') as file:
+                # Write header
+                file.write("#ifndef CONFIG_H\n#define CONFIG_H\n\n")
+                file.write(f'#define DEVICE_NAME "{name_entry.get()}"\n')
+                file.write(f'#define NUM_SIDES "{number_of_controls.get()}"\n\n')
 
-            # Write face configurations
-            file.write("const FaceConfig faceConfigs[] = {\n")
-            for i in range(number_of_controls.get()):  # Adjust the range according to the number of faces
-                x = accel_X[i]
-                y = accel_Y[i]
-                z = accel_Z[i]
-                note1 = entries_mode1['Note'][i].get()
-                note2 = entries_mode2['Note'][i].get()
-                note3 = entries_mode3['Note'][i].get()
-                file.write(f"    {{{x}, {y}, {z}, {note1}, {note2}, {note3}}}, // Face {i+1}\n")
-            file.write("};\n\n")
+                # Define struct
+                file.write("struct FaceConfig {\n")
+                file.write("    float x;\n")
+                file.write("    float y;\n")
+                file.write("    float z;\n")
+                file.write("    byte note1;\n")
+                file.write("    byte note2;\n")
+                file.write("    byte note3;\n")
+                file.write("};\n\n")
 
-            # Calculate and write total faces
-            file.write("const int totalFaces = sizeof(faceConfigs) / sizeof(faceConfigs[0]);\n\n")
-            file.write("#endif // CONFIG_H\n")
+                # Write face configurations
+                file.write("const FaceConfig faceConfigs[] = {\n")
+                for i in range(number_of_controls.get()):  # Adjust the range according to the number of faces
+                    x = accel_X[i]
+                    y = accel_Y[i]
+                    z = accel_Z[i]
+                    note1 = entries_mode1['Note'][i].get()
+                    note2 = entries_mode2['Note'][i].get()
+                    note3 = entries_mode3['Note'][i].get()
+                    file.write(f"    {{{x}, {y}, {z}, {note1}, {note2}, {note3}}}, // Face {i+1}\n")
+                file.write("};\n\n")
 
-        print("File saved successfully")
-        print_to_console("File saved successfully")
-    except Exception as e:
-        print(f"Failed to save file: {e}")
-        print_to_console(f"Failed to save file: {e}")
+                # Calculate and write total faces
+                file.write("const int totalFaces = sizeof(faceConfigs) / sizeof(faceConfigs[0]);\n\n")
+                file.write("#endif // CONFIG_H\n")
+
+            print("File saved successfully")
+            print_to_console("File saved successfully")
+        except Exception as e:
+            print(f"Failed to save file: {e}")
+            print_to_console(f"Failed to save file: {e}")
 
 def restrict_space_key(event):
     if event.keysym == 'space':
@@ -461,15 +497,15 @@ def parse_h_file(file_path):
             if '#define DEVICE_NAME' in line:
                 device_name = line.split()[2].strip('"')
                 print("Device Name:", device_name)
-                # name_entry.delete(0, 'end')  # Clear the current value
-                # name_entry.insert(0, device_name)  # Insert the new value
+
+                name_entry.delete(0, 'end')  # Clear the current name
+                name_entry.insert(0, device_name)         # Insert the new name
 
             # Parse number of sides
             elif '#define NUM_SIDES' in line:
                 num_sides = int(line.split()[2].strip('"'))  # Convert to int for later use
                 print("Number of Sides:", num_sides)
-                # confirm_sides(num_sides)
-                # number_of_controls.set(num_sides)
+                number_of_controls.set(num_sides)
 
             # Detect the start of face configurations
             elif 'const FaceConfig faceConfigs[]' in line:
@@ -609,7 +645,7 @@ button_connect = ctk.CTkButton(f_device_manager, text="Connect", height=25, widt
 button_connect.grid(row=3, column=0, padx=25, pady=5)
 
 button_disconnect = ctk.CTkButton(f_device_manager, text="Disconnect", height=25, width=270, command=disconnect,
-                                  fg_color=L_teal, hover_color='#ff375f', text_color="#302c2c")
+                                  fg_color=L_teal, hover_color=Red, text_color="#302c2c")
 button_disconnect.grid(row=4, column=0, padx=25, pady=5)
 
 for widget in f_device_manager.winfo_children():
@@ -650,25 +686,25 @@ sides_entry.grid(row=1, column=1, padx=0, pady=(0, 10), sticky='new')
 
 # Down button
 button_down = ctk.CTkButton(
-    f_controls, text="▼", height=30, width=45,
+    f_controls, text="🠟", height=30, width=45,
     command=lambda: [
         number_of_controls.set(max(4, number_of_controls.get() - 1)),  # Ensure the value doesn't go below 4
         confirm_sides(number_of_controls.get()),
         indicate_limit(sides_entry) if number_of_controls.get() == 4 else None
     ],
-    fg_color=L_teal, hover_color=D_teal, font=('Bahnschrift SemiBold', 12)
+    fg_color='transparent', hover_color=D_teal, font=('Bahnschrift SemiBold', 35), text_color=L_teal
 )
 button_down.grid(row=1, column=0, sticky='nsw')
 
 # Up button
 button_up = ctk.CTkButton(
-    f_controls, text="▲", height=30, width=45,
+    f_controls, text="🠝", height=30, width=45,
     command=lambda: [
         number_of_controls.set(min(20, number_of_controls.get() + 1)),  # Ensure the value doesn't go above 20
         confirm_sides(number_of_controls.get()),
         indicate_limit(sides_entry) if number_of_controls.get() == 20 else None
     ],
-    fg_color=L_teal, hover_color=D_teal, font=('Bahnschrift SemiBold', 12)
+    fg_color='transparent', hover_color=D_teal, font=('Bahnschrift SemiBold', 35),text_color=L_teal
 )
 button_up.grid(row=1, column=2, sticky='nsw')
 
@@ -706,32 +742,14 @@ test_toggle.configure(command=run_toggle_dp_sensor)
 for widget in f_controls.winfo_children():
     widget.grid_configure(padx=5, pady=5)
 
-# File Management -------------------------------------------------------------------------------------
-f_file = ctk.CTkFrame(master=frame, fg_color="#e5e5ea")
-f_file.grid(row=4, column=0, padx=10, pady=5, sticky='nsw')
-
-button_save = ctk.CTkButton(master=f_file, height=25, width=280, text="Save to File", fg_color=L_teal,
-                            hover_color=D_teal, text_color="#302c2c", command=save_file)
-button_save.grid(row=0, column=0, padx=10, pady=5)
-
-button_import = ctk.CTkButton(master=f_file, height=25, width=280, text="Import File", fg_color=L_teal,
-                              hover_color=D_teal, text_color="#302c2c", command=import_file)
-button_import.grid(row=1, column=0, padx=10, pady=5)
-
-
-
 # Face Values Frame -------------------------------------------------------------------------------------
 f_face = ctk.CTkFrame(master=frame, fg_color='transparent')
-f_face.grid(row=1, column=1, rowspan=4, sticky='nsew', padx=10, pady=10)
+f_face.grid(row=1, column=1, rowspan=4, sticky='new', padx=10, pady=10)
 
 entries = {label: [] for label in ['Note', 'X', 'Y', 'Z']}
-create_face_layout(f_face, entries)
 
-row_labels = ['Note', 'X', 'Y', 'Z']
-last_selected_face = None
-
-tabview = CTkTabview(frame, segmented_button_fg_color=blue, segmented_button_unselected_color=blue, fg_color=D_gray)
-tabview.grid(row=1, column=1, rowspan=4, sticky='nsew', padx=10, pady=10)
+tabview = CTkTabview(f_face, segmented_button_fg_color=blue, segmented_button_unselected_color=blue, fg_color=D_gray)
+tabview.grid(row=0, column=1, rowspan=4, sticky='new', padx=10, pady=10)
 
 # Create three tabs
 tab_faces1 = tabview.add("Mode 1")
@@ -748,6 +766,34 @@ create_face_layout(tab_faces3, entries)
 entries_A = {label: [] for label in ['Note', 'X', 'Y', 'Z', 'Dot Product']}
 entries_B = {label: [] for label in ['Note', 'X', 'Y', 'Z', 'Dot Product']}
 
+# File Management -------------------------------------------------------------------------------------
+f_file = ctk.CTkFrame(master=frame, fg_color="transparent")
+f_file.grid(row=5, column=1, padx=5, pady=5, sticky='new')
+
+button_save = ctk.CTkButton(master=f_file, height=25, width=280, text="Save to File", fg_color=L_teal,
+                            hover_color=D_teal, text_color="#302c2c", command=save_file)
+button_save.grid(row=0, column=0, padx=10, pady=5)
+
+button_import = ctk.CTkButton(master=f_file, height=25, width=280, text="Import File", fg_color=L_teal,
+                              hover_color=D_teal, text_color="#302c2c", command=import_file)
+button_import.grid(row=0, column=1, padx=10, pady=5)
+
+from tkinter import messagebox
+
+
+reset_button = ctk.CTkButton(
+    master=f_file,
+    text="⭮",
+    command= lambda: reset_entries(),  # Link to the reset_entries function
+    height=25,
+    width=50,
+    fg_color="red",
+    text_color="white",
+    hover_color="#ff6666",
+    font=('Bahnschrift SemiBold', 10),
+    text_color_disabled='grey')
+
+reset_button.grid(row=0, column=2, padx=5, pady=5)
 
 # Overall Organization-------------------------------------------------------
 for widget in frame.winfo_children():
@@ -783,7 +829,6 @@ def update_interface_on_connection(status):
         'tab_faces1': tab_faces1.winfo_children(),
         'tab_faces2': tab_faces2.winfo_children(),
         'tab_faces3': tab_faces3.winfo_children(),
-        'f_name': f_name.winfo_children(),
         'f_controls': f_controls.winfo_children()
     }
 
@@ -799,7 +844,7 @@ async def main():
 
 
 async def connect_to_device(address):
-    popup = create_popup("Connecting")
+    popup = create_popup("Connecting", green, True)
     global client
     try:
         print(f"Attempting to connect to {address}")
