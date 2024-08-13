@@ -8,14 +8,14 @@ Date: Summer 2024
 #include <BLEMIDI_Transport.h>
 #include <M5StickCPlus2.h>
 #include <hardware/BLEMIDI_ESP32_NimBLE.h>
-#include "try.h"
+#include "Config.h"
 #include <cmath> 
-
 
 #define MIDI_CHANNEL_NO 1
 #define MIDI_DEVICE_NAME DEVICE_NAME
 
-String menuItems[] = {"Normal Mode", "Musical Mode", "Info"};
+// Updated menu items
+String menuItems[] = {"Normal Mode", "Mode 1", "Mode 2", "Mode 3", "Info"};
 int currentSelection = 0;
 const int totalItems = sizeof(menuItems) / sizeof(menuItems[0]);
 
@@ -25,10 +25,6 @@ bool IsConnected = false;
 float accX = 0.0F;
 float accY = 0.0F;
 float accZ = 0.0F;
-
-#define INIT_NOTE_PITCH 30
-int CurrentNotePitch = INIT_NOTE_PITCH;
-#define PIN_LED 10
 
 int delayValue = 100;
 int minDelay = 100;
@@ -45,7 +41,6 @@ void OnDisconnected() {
 void OnNoteOn(byte channel, byte note, byte velocity) {}
 void OnNoteOff(byte channel, byte note, byte velocity) {}
 
-
 void Normal_Mode() {
     StickCP2.Lcd.fillScreen(BLACK);
     while (true) {
@@ -57,18 +52,13 @@ void Normal_Mode() {
         StickCP2.Lcd.setTextColor(MAGENTA);
         StickCP2.Lcd.setTextSize(2);
 
-        float minAngle = M_PI; // Initialize to max angle in radians
+        float minAngle = M_PI;
         int matchedFace = -1;
 
         for (int i = 0; i < totalFaces; i++) {
-            // Dot product of current vector and face vector
             float dotProduct = accX * faceConfigs[i].x + accY * faceConfigs[i].y + accZ * faceConfigs[i].z;
-
-            // Magnitudes of the vectors
             float magnitudeCurrent = sqrt(accX * accX + accY * accY + accZ * accZ);
             float magnitudeFace = sqrt(faceConfigs[i].x * faceConfigs[i].x + faceConfigs[i].y * faceConfigs[i].y + faceConfigs[i].z * faceConfigs[i].z);
-
-            // Calculate the angle
             float angle = acos(dotProduct / (magnitudeCurrent * magnitudeFace));
 
             if (angle < minAngle) {
@@ -93,30 +83,26 @@ void Normal_Mode() {
     }
 }
 
-void Musical_Mode() {
+// Updated musical modes
+void playMusicalMode(int mode) {
     StickCP2.Lcd.fillScreen(BLACK);
     while (true) {
         StickCP2.Imu.getAccelData(&accX, &accY, &accZ);
         StickCP2.Lcd.fillScreen(BLACK);
         byte note = 0;
         StickCP2.Lcd.setCursor(10, 50);
-        StickCP2.Lcd.print("Musical Mode");
+        StickCP2.Lcd.printf("Mode %d", mode);
         StickCP2.Lcd.setCursor(30, 90);
         StickCP2.Lcd.setTextColor(MAGENTA);
         StickCP2.Lcd.setTextSize(2);
 
-        float minAngle = M_PI; // Initialize to max angle in radians
+        float minAngle = M_PI;
         int matchedFace = -1;
 
         for (int i = 0; i < totalFaces; i++) {
-            // Dot product of current vector and face vector
             float dotProduct = accX * faceConfigs[i].x + accY * faceConfigs[i].y + accZ * faceConfigs[i].z;
-
-            // Magnitudes of the vectors
             float magnitudeCurrent = sqrt(accX * accX + accY * accY + accZ * accZ);
             float magnitudeFace = sqrt(faceConfigs[i].x * faceConfigs[i].x + faceConfigs[i].y * faceConfigs[i].y + faceConfigs[i].z * faceConfigs[i].z);
-
-            // Calculate the angle
             float angle = acos(dotProduct / (magnitudeCurrent * magnitudeFace));
 
             if (angle < minAngle) {
@@ -126,7 +112,17 @@ void Musical_Mode() {
         }
 
         if (matchedFace != -1) {
-            note = faceConfigs[matchedFace].note1;
+            switch (mode) {
+                case 1:
+                    note = faceConfigs[matchedFace].note1;
+                    break;
+                case 2:
+                    note = faceConfigs[matchedFace].note2;
+                    break;
+                case 3:
+                    note = faceConfigs[matchedFace].note3;
+                    break;
+            }
             StickCP2.Lcd.printf("Face %d is up", matchedFace + 1);
         } else {
             StickCP2.Lcd.println("Undetermined");
@@ -163,7 +159,6 @@ void Musical_Mode() {
 }
 
 void setup() {
-    uint16_t vbat;
     StickCP2.begin();
     Serial.begin(115200);
     StickCP2.Imu.init();
@@ -192,7 +187,7 @@ void loop() {
         if (incomingMessage == "Q") {
             Normal_Mode();
         } else if (incomingMessage == "Music") {
-            Musical_Mode();
+            playMusicalMode(currentSelection - 1);
         }
     }
 
@@ -210,22 +205,18 @@ void displayExplanation() {
     StickCP2.Lcd.setCursor(10, 20);
     StickCP2.Lcd.setTextSize(2);
 
-    StickCP2.Lcd.print("Welcome to the");
-    StickCP2.Lcd.print("DICE");
+    StickCP2.Lcd.print("Welcome to the DICE");
     StickCP2.Lcd.setCursor(10, 50);
-    StickCP2.Lcd.print("Normal Mode");
-    StickCP2.Lcd.print("sans music");
-
+    StickCP2.Lcd.print("Normal Mode sans music");
     StickCP2.Lcd.setCursor(10, 70);
-    StickCP2.Lcd.print("Musical Mode");
-    StickCP2.Lcd.print("Roll the dice, make music");
+    StickCP2.Lcd.print("Mode 1, 2, 3: Roll the dice, make music");
     StickCP2.Lcd.setCursor(10, 90);
 }
 
 void displayMenu() {
     StickCP2.Lcd.fillScreen(BLACK);
 
-    int startY = 80;
+    int startY = 10;
     for (int i = 0; i < totalItems; i++) {
         if (i == currentSelection) {
             StickCP2.Lcd.setTextColor(GREEN);
@@ -243,9 +234,15 @@ void selectOption() {
             Normal_Mode();
             break;
         case 1:
-            Musical_Mode();
+            playMusicalMode(1);  // Mode 1
             break;
         case 2:
+            playMusicalMode(2);  // Mode 2
+            break;
+        case 3:
+            playMusicalMode(3);  // Mode 3
+            break;
+        case 4:
             displayExplanation();
             break;
     }

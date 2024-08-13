@@ -139,7 +139,7 @@ def create_popup(msg,color, movement):
 
 
 async def scan_devices():
-    popup = create_popup("Scanning", green,True )
+    popup = create_popup("Scanning", 'black',True )
     try:
         print("Scanning for devices...")
         print_to_console("Scanning for devices...")
@@ -748,7 +748,7 @@ f_face.grid(row=1, column=1, rowspan=4, sticky='new', padx=10, pady=10)
 
 entries = {label: [] for label in ['Note', 'X', 'Y', 'Z']}
 
-tabview = CTkTabview(f_face, segmented_button_fg_color=blue, segmented_button_unselected_color=blue, fg_color=D_gray)
+tabview = CTkTabview(f_face, segmented_button_fg_color=L_teal, segmented_button_unselected_color=L_teal, fg_color=D_gray)
 tabview.grid(row=0, column=1, rowspan=4, sticky='new', padx=10, pady=10)
 
 # Create three tabs
