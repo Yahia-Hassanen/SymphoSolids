@@ -304,42 +304,34 @@ def highlight_closest():
         asyncio.create_task(send_data(client, "Record"))
         print("Data sent")
 
-def update_entries(face, data):
+def update_entries(face, data, entries_mode):
     col_index = faces.index(face)
-    for entries in [entries_mode1, entries_mode2, entries_mode3]:
-        for key in ['X', 'Y', 'Z']:
-            value = data.get(key, '0')
 
+    # Update X, Y, Z entries
+    for key in ['X', 'Y', 'Z']:
+        value = data.get(key, '0')
+        entries_mode[key][col_index].configure(text=str(value))
 
-            entries[key][col_index].configure(text=str(value))
+        # Update the corresponding list with the new value
+        if key == 'X':
+            accel_X[col_index] = value
+        elif key == 'Y':
+            accel_Y[col_index] = value
+        elif key == 'Z':
+            accel_Z[col_index] = value
 
-            # Update the corresponding list with the new value
-            if key == 'X':
-                accel_X[col_index] = value
-            elif key == 'Y':
-                accel_Y[col_index] = value
-            elif key == 'Z':
-                accel_Z[col_index] = value
+    # Update Note entry
+    if 'Note' in data:
+        note_value = data['Note']
+        note_widget = entries_mode['Note'][col_index]
+        note_widget.bind("<Key>", restrict_space_key)
+        note_widget.bind("<Key>", restrict_input)
 
-        for key in entries:
-            if key == 'Note':
-                entries[key][col_index].configure(state="normal")
-                entries[key][col_index].delete(0, 'end')
-                if key in data:
-                    entries[key][col_index].insert(0, str(data[key]))
-                else:
-                    entries[key][col_index].insert(0, '0')
+        note_widget.configure(state="normal")
+        note_widget.delete(0, 'end')
+        note_widget.insert(0, str(note_value))
+        print(f"Updating Note widget at column {col_index} with value: {note_value}")
 
-        if 'Note' in data:
-            note_value = data['Note']
-            note_widget = entries['Note'][col_index]
-            note_widget.bind("<Key>", restrict_space_key)
-            note_widget.bind("<Key>", restrict_input)
-            print(f"Updating Note widget at column {col_index} with value: {note_value}")
-            note_widget.configure(state="normal")
-            note_widget.delete(0, 'end')
-            note_widget.insert(0, str(note_value))
-            print(f"Note widget updated with value: {note_widget.get()}")
 
 def confirm():  #confirmation message box
     resp = messagebox.askyesno(title="Confirmation window", message="Are you sure?", detail="Reset cannot be undone",
@@ -443,7 +435,7 @@ def save_file():
                     note1 = entries_mode1['Note'][i].get()
                     note2 = entries_mode2['Note'][i].get()
                     note3 = entries_mode3['Note'][i].get()
-                    file.write(f"    {{{x}, {y}, {z}, {note1}, {note2}, {note3}}}, // Face {i+1}\n")
+                    file.write(f"    {{{x}, {y}, {z}, {note1}, {note2}, {note3}}},\n")
                 file.write("};\n\n")
 
                 # Calculate and write total faces
@@ -534,17 +526,23 @@ def parse_h_file(file_path):
 
     print("Finished parsing file")  # Debugging statement
 
-    # Process all faces and modes
-    for mode in modes:
-        mode_index = int(mode[-1]) - 1  # Convert mode (1, 2, 3) to index (0, 1, 2)
-        for face_num, config in enumerate(face_configs, start=1):  # Faces 1 to num_sides
+    for face_num, config in enumerate(face_configs, start=1):  # Faces 1 to num_sides
+        for mode in modes:
             face = f'Face {face_num}'
             data = {axis: config[axis] for axis in ['X', 'Y', 'Z']}
-            data['Note'] = config['NOTE'][mode_index]  # Select the Note value based on the mode
 
-            # Debugging: print the data to be passed to update_entries
-            print(f"Updating entries for {face} in {mode} with data: {data}")
-            update_entries(face, data)
+            # Determine the correct Note index based on the mode
+            if mode == 'MODE1':
+                data['Note'] = config['NOTE'][0]  # Select the Note value for MODE1
+                update_entries(face, data, entries_mode1)  # Update entries for MODE1
+            elif mode == 'MODE2':
+                data['Note'] = config['NOTE'][1]  # Select the Note value for MODE2
+                update_entries(face, data, entries_mode2)  # Update entries for MODE2
+            elif mode == 'MODE3':
+                data['Note'] = config['NOTE'][2]  # Select the Note value for MODE3
+                update_entries(face, data, entries_mode3)  # Update entries for MODE3
+            else:
+                continue
 
 
 def import_file():

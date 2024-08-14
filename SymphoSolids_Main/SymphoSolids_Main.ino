@@ -8,14 +8,15 @@ Date: Summer 2024
 #include <BLEMIDI_Transport.h>
 #include <M5StickCPlus2.h>
 #include <hardware/BLEMIDI_ESP32_NimBLE.h>
-#include "Config.h"
 #include <cmath> 
+
+#include "test_2.h"
 
 #define MIDI_CHANNEL_NO 1
 #define MIDI_DEVICE_NAME DEVICE_NAME
 
 // Updated menu items
-String menuItems[] = {"Normal Mode", "Mode 1", "Mode 2", "Mode 3", "Info"};
+String menuItems[] = {"Mode 1", "Mode 2", "Mode 3", "Info"};
 int currentSelection = 0;
 const int totalItems = sizeof(menuItems) / sizeof(menuItems[0]);
 
@@ -27,8 +28,8 @@ float accY = 0.0F;
 float accZ = 0.0F;
 
 int delayValue = 100;
-int minDelay = 100;
-int maxDelay = 1500;
+int minDelay = 50;
+int maxDelay = 300;
 
 void OnConnected() {
     IsConnected = true;
@@ -41,47 +42,6 @@ void OnDisconnected() {
 void OnNoteOn(byte channel, byte note, byte velocity) {}
 void OnNoteOff(byte channel, byte note, byte velocity) {}
 
-void Normal_Mode() {
-    StickCP2.Lcd.fillScreen(BLACK);
-    while (true) {
-        StickCP2.Imu.getAccelData(&accX, &accY, &accZ);
-        StickCP2.Lcd.fillScreen(BLACK);
-        StickCP2.Lcd.setCursor(10, 50);
-        StickCP2.Lcd.print("Normal Mode");
-        StickCP2.Lcd.setCursor(30, 90);
-        StickCP2.Lcd.setTextColor(MAGENTA);
-        StickCP2.Lcd.setTextSize(2);
-
-        float minAngle = M_PI;
-        int matchedFace = -1;
-
-        for (int i = 0; i < totalFaces; i++) {
-            float dotProduct = accX * faceConfigs[i].x + accY * faceConfigs[i].y + accZ * faceConfigs[i].z;
-            float magnitudeCurrent = sqrt(accX * accX + accY * accY + accZ * accZ);
-            float magnitudeFace = sqrt(faceConfigs[i].x * faceConfigs[i].x + faceConfigs[i].y * faceConfigs[i].y + faceConfigs[i].z * faceConfigs[i].z);
-            float angle = acos(dotProduct / (magnitudeCurrent * magnitudeFace));
-
-            if (angle < minAngle) {
-                minAngle = angle;
-                matchedFace = i;
-            }
-        }
-
-        if (matchedFace != -1) {
-            StickCP2.Lcd.printf("Face %d is up", matchedFace + 1);
-        } else {
-            StickCP2.Lcd.println("Undetermined");
-        }
-
-        StickCP2.Lcd.setTextColor(TFT_WHITE);
-        StickCP2.update();
-        if (StickCP2.BtnB.wasPressed()) {
-            displayMenu();
-            break;
-        }
-        delay(1000);
-    }
-}
 
 // Updated musical modes
 void playMusicalMode(int mode) {
@@ -145,11 +105,11 @@ void playMusicalMode(int mode) {
 
         StickCP2.Lcd.setCursor(12, 30);
         StickCP2.Lcd.setTextColor(WHITE);
-        StickCP2.Lcd.print("Tempo: ");
+        StickCP2.Lcd.print("DV: ");
         StickCP2.Lcd.print(delayValue);
 
         if (StickCP2.BtnA.wasPressed()) {
-            delayValue += 100;
+            delayValue += 50;
             if (delayValue > maxDelay) {
                 delayValue = minDelay;
             }
@@ -183,12 +143,6 @@ void loop() {
         Serial.println("Received: " + incomingMessage);
         Serial.println("Hello from M5StickC Plus!");
         delay(2000);
-
-        if (incomingMessage == "Q") {
-            Normal_Mode();
-        } else if (incomingMessage == "Music") {
-            playMusicalMode(currentSelection - 1);
-        }
     }
 
     if (StickCP2.BtnA.wasPressed()) {
@@ -205,11 +159,10 @@ void displayExplanation() {
     StickCP2.Lcd.setCursor(10, 20);
     StickCP2.Lcd.setTextSize(2);
 
-    StickCP2.Lcd.print("Welcome to the DICE");
+    StickCP2.Lcd.print("Welcome to SymphoSolids");
     StickCP2.Lcd.setCursor(10, 50);
-    StickCP2.Lcd.print("Normal Mode sans music");
     StickCP2.Lcd.setCursor(10, 70);
-    StickCP2.Lcd.print("Mode 1, 2, 3: Roll the dice, make music");
+    StickCP2.Lcd.print("Mode 1, 2, 3: Roll the solid, make music");
     StickCP2.Lcd.setCursor(10, 90);
 }
 
@@ -231,18 +184,15 @@ void displayMenu() {
 void selectOption() {
     switch (currentSelection) {
         case 0:
-            Normal_Mode();
-            break;
-        case 1:
             playMusicalMode(1);  // Mode 1
             break;
-        case 2:
+        case 1:
             playMusicalMode(2);  // Mode 2
             break;
-        case 3:
+        case 2:
             playMusicalMode(3);  // Mode 3
             break;
-        case 4:
+        case 3:
             displayExplanation();
             break;
     }
