@@ -1,4 +1,4 @@
-#File: SymphoSolidsConfiguration
+# File: SymphoSolidsConfiguration
 import asyncio
 import customtkinter as ctk
 import keyboard
@@ -18,12 +18,11 @@ from bleak.exc import BleakError, BleakDeviceNotFoundError
 WRITE_CHARACTERISTIC_UUID = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
 NOTIFICATION_CHARACTERISTIC_UUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
 
-
 # Colot Lib
 
 green = '#aaf255'
-L_grey = '#f2f2f7' #root bg
-D_gray = '#e5e5ea' #frame_bg
+L_grey = '#f2f2f7'  # root bg
+D_gray = '#e5e5ea'  # frame_bg
 blue = '#4a26fd'
 L_teal = '#6ac4dc'
 D_teal = '#008299'
@@ -80,28 +79,27 @@ record_lock = threading.Lock()
 global current_xyz
 current_xyz = None
 
-
 faces = [f"Face {i}" for i in range(1, 21)]
 number_of_controls = ctk.IntVar(value=4)  # Default value
 device_name = ctk.StringVar(value='')  # Default value
 angle_vars = [ctk.StringVar() for i in faces]
 
-
 accel_X = [0] * 20
 accel_Y = [0] * 20
 accel_Z = [0] * 20
-
 
 # List to accumulate received face data
 received_faces = []
 client = None
 debounce_timer = None
 
+
 class Face:
     def __init__(self, accel_X, accel_Y, accel_Z):
         self.accel_X = accel_X
         self.accel_Y = accel_Y
         self.accel_Z = accel_Z
+
 
 # Function Definitions----------------------------------------------------------------------------------------------
 def print_to_console(text):
@@ -111,7 +109,7 @@ def print_to_console(text):
     console_text.see('end')  # Auto-scroll to the end
 
 
-def create_popup(msg,color, movement):
+def create_popup(msg, color, movement):
     popup = ctk.CTkToplevel(root)
     popup.title("Scanning for Devices")
     popup.geometry("300x100")
@@ -139,7 +137,7 @@ def create_popup(msg,color, movement):
 
 
 async def scan_devices():
-    popup = create_popup("Scanning", 'black',True )
+    popup = create_popup("Scanning", 'black', True)
     try:
         print("Scanning for devices...")
         print_to_console("Scanning for devices...")
@@ -200,52 +198,62 @@ def disconnect():
 
 
 def confirm_sides(sides):
-    sides=int(sides)
+    sides = int(sides)
     global debounce_timer
     if debounce_timer is not None:
         root.after_cancel(debounce_timer)
     debounce_timer = root.after(3000, lambda: [update_face_buttons_and_entries(sides, tabs)])
 
 
-
 def parse_accelerometer_data(data):
     try:
+        # Parse and round the accelerometer data
         accelX, accelY, accelZ = struct.unpack('fff', data)
         accelX = round(accelX, 2)
         accelY = round(accelY, 2)
         accelZ = round(accelZ, 2)
 
+        # Organize the data into a dictionary
+        parsed_data = {'X': accelX, 'Y': accelY, 'Z': accelZ}
+
+        # Check if in test mode
         if test_toggle.get() == 1:
-            current_xyz = {'X': accelX, 'Y': accelY, 'Z': accelZ}
-            print(f"Current Orientation: {current_xyz}")
-            print_to_console(f"Current Orientation: {current_xyz}")
-            angle_between(current_xyz)
-            print(f"Sent to angle calc")
+            print(f"Current Orientation: {parsed_data}")
+            print_to_console(f"Current Orientation: {parsed_data}")
+            print("Sent to angle calc")
+            angle_between(parsed_data)
         else:
-            parsed_data = {'X': accelX, 'Y': accelY, 'Z': accelZ}
             print(f"Parsed data: X={parsed_data['X']}, Y={parsed_data['Y']}, Z={parsed_data['Z']}")
             print_to_console(f"Parsed data: X={parsed_data['X']}, Y={parsed_data['Y']}, Z={parsed_data['Z']}")
-            update_entries(last_selected_face, parsed_data)
+            angle_between(parsed_data)
+            # Proceed with duplicate check and potentially update the entries
+            duplicate_alert(parsed_data)
+
     except struct.error as e:
         print(f"Failed to parse data: {e}")
         print_to_console(f"Failed to parse data: {e}")
         return {}
 
+
 def angle_between(current_xyz):
     global angles
     angles = []  # Reset the list for new calculations
     print("Calculating angle...")
+
+    # Convert current orientation to numpy array
     current_xyz_array = numpy.array([current_xyz['X'], current_xyz['Y'], current_xyz['Z']])
 
+    # Calculate the angle between current orientation and each face
     for face in faces:
         face_index = faces.index(face)
         face_array = numpy.array([float(accel_X[face_index]), float(accel_Y[face_index]), float(accel_Z[face_index])])
 
         try:
-            angle = math.acos(
-                numpy.dot(face_array, current_xyz_array) /
-                (numpy.linalg.norm(face_array) * numpy.linalg.norm(current_xyz_array))
-            )
+            a = numpy.dot(face_array, current_xyz_array)
+            b = numpy.linalg.norm(face_array)
+            c = numpy.linalg.norm(current_xyz_array)
+            angle = math.acos(a/(b * c))
+
             angles.append(angle)  # Store the calculated angle
             print(f"Angle between current orientation and Face {face_index + 1} is:", round(angle, 3))
             print_to_console(f"Angle between current orientation and Face {face_index + 1} is: {round(angle, 3)}")
@@ -253,11 +261,33 @@ def angle_between(current_xyz):
             print(f"Failed to calculate angle for Face {face_index + 1}: {e}")
             print_to_console(f"Failed to calculate angle for Face {face_index + 1}: {e}")
 
-    # Highlight the closest angle
-    highlight_closest()
+    # Highlight the closest angle if in test mode
+    if test_toggle.get() == 1:
+        highlight_closest()
 
 
+def duplicate_alert(current_xyz):
+    print("Checking for duplicates...")
+    smallest_angle = min(angles)
+    smallest_angle_index = angles.index(smallest_angle)
 
+    # Check if the smallest angle is within the threshold to be considered similar
+    if 0 <= smallest_angle <= 0.09 :
+        print(f"Incoming data: {current_xyz} is similar to Face: {smallest_angle_index + 1}")
+        msg = f"Face '{smallest_angle_index + 1}' has already been registered with similar data. Are you sure this is a new face?"
+        resp = messagebox.askyesno("Data Already Recorded", msg)
+
+        # If the user chooses to update, call update_entries
+        if resp:
+            print(f"Updating Face '{last_selected_face + 1}' with new data...")
+            update_entries(faces[smallest_angle_index], current_xyz)
+        else:
+            print(f"Face '{smallest_angle_index + 1}' already registered, skipping update.")
+            return  # Skip the update if the user rejects
+    else:
+        # If no faces are similar, update the last selected face with the new data
+        print(f"No similar faces found, updating Face '{last_selected_face}' with new data...")
+        update_entries(last_selected_face, current_xyz)
 
 
 async def notification_handler(sender, data):
@@ -276,6 +306,7 @@ async def notification_handler(sender, data):
         print_to_console(f"Error in notification handler: {e}")
 
     record_message_sent = False
+
 
 def highlight_closest():
     print("Highlighting...")
@@ -304,7 +335,24 @@ def highlight_closest():
         asyncio.create_task(send_data(client, "Record"))
         print("Data sent")
 
-def update_entries(face, data, entries_mode):
+
+def update_entries(face, data):
+    col_index = faces.index(face)
+    for entries in [entries_mode1, entries_mode2, entries_mode3]:
+        for key in ['X', 'Y', 'Z']:
+            value = data.get(key, '0')
+
+            entries[key][col_index].configure(text=str(value))
+
+            # Update the corresponding list with the new value
+            if key == 'X':
+                accel_X[col_index] = value
+            elif key == 'Y':
+                accel_Y[col_index] = value
+            elif key == 'Z':
+                accel_Z[col_index] = value
+
+def update_entries_from_file(face, data, entries_mode):
     col_index = faces.index(face)
 
     # Update X, Y, Z entries
@@ -333,10 +381,11 @@ def update_entries(face, data, entries_mode):
         print(f"Updating Note widget at column {col_index} with value: {note_value}")
 
 
-def confirm():  #confirmation message box
+def confirm():  # confirmation message box
     resp = messagebox.askyesno(title="Confirmation window", message="Are you sure?", detail="Reset cannot be undone",
                                icon='question', default='no')
     return resp
+
 
 def reset_entries():
     resp = confirm()
@@ -363,6 +412,7 @@ def reset_entries():
     else:
         pass
 
+
 def indicate_limit(label):
     def update_color():
         sides = number_of_controls.get()
@@ -380,20 +430,19 @@ record_message_sent = False
 
 
 async def record_face(selected_face):
-   global last_selected_face
-   global record_message_sent
+    global last_selected_face
+    global record_message_sent
 
+    with record_lock:
+        if not record_message_sent:
+            await send_data(client, f"Record")
+            record_message_sent = True
 
-   with record_lock:
-       if not record_message_sent:
-           await send_data(client, f"Record")
-           record_message_sent = True
+        last_selected_face = selected_face
 
-
-       last_selected_face = selected_face
 
 def save_file():
-    if len(name_entry.get())==0:
+    if len(name_entry.get()) == 0:
         create_popup("Enter Device Name", Red, False)
         time.sleep(3)
         popup.destroy()
@@ -448,9 +497,11 @@ def save_file():
             print(f"Failed to save file: {e}")
             print_to_console(f"Failed to save file: {e}")
 
+
 def restrict_space_key(event):
     if event.keysym == 'space':
         return "break"
+
 
 def restrict_input(event):
     allowed_keys = ['BackSpace', 'Left', 'Right', 'Up', 'Down', 'Delete', 'Tab', 'Return']
@@ -491,7 +542,7 @@ def parse_h_file(file_path):
                 print("Device Name:", device_name)
 
                 name_entry.delete(0, 'end')  # Clear the current name
-                name_entry.insert(0, device_name)         # Insert the new name
+                name_entry.insert(0, device_name)  # Insert the new name
 
             # Parse number of sides
             elif '#define NUM_SIDES' in line:
@@ -534,13 +585,13 @@ def parse_h_file(file_path):
             # Determine the correct Note index based on the mode
             if mode == 'MODE1':
                 data['Note'] = config['NOTE'][0]  # Select the Note value for MODE1
-                update_entries(face, data, entries_mode1)  # Update entries for MODE1
+                update_entries_from_file(face, data, entries_mode1)  # Update entries for MODE1
             elif mode == 'MODE2':
                 data['Note'] = config['NOTE'][1]  # Select the Note value for MODE2
-                update_entries(face, data, entries_mode2)  # Update entries for MODE2
+                update_entries_from_file(face, data, entries_mode2)  # Update entries for MODE2
             elif mode == 'MODE3':
                 data['Note'] = config['NOTE'][2]  # Select the Note value for MODE3
-                update_entries(face, data, entries_mode3)  # Update entries for MODE3
+                update_entries_from_file(face, data, entries_mode3)  # Update entries for MODE3
             else:
                 continue
 
@@ -576,8 +627,8 @@ def create_face_layout(parent_frame, entries):
 
     for row_index, label in enumerate(['Note', 'X', 'Y', 'Z'], start=2):
         ctk.CTkLabel(master=parent_frame, text=label, font=('Cascadia Code', 12)).grid(row=row_index, column=0,
-                                                                                              padx=5, pady=5,
-                                                                                              sticky='nsew')
+                                                                                       padx=5, pady=5,
+                                                                                       sticky='nsew')
         for col_index in range(1, 11):
             if label in ['X', 'Y', 'Z']:
                 entry = ctk.CTkLabel(master=parent_frame, text="0", font=('Cascadia Code', 12))
@@ -594,8 +645,8 @@ def create_face_layout(parent_frame, entries):
 
     for row_index, label in enumerate(['Note', 'X', 'Y', 'Z'], start=2):
         ctk.CTkLabel(master=parent_frame, text=label, font=('Cascadia Code', 12)).grid(row=row_index + 6,
-                                                                                              column=0, padx=5, pady=5,
-                                                                                              sticky='nsew')
+                                                                                       column=0, padx=5, pady=5,
+                                                                                       sticky='nsew')
         for col_index in range(11, 21):
             if label in ['X', 'Y', 'Z']:
                 entry = ctk.CTkLabel(master=parent_frame, text="0", font=('Cascadia Code', 12))
@@ -609,6 +660,7 @@ def create_face_layout(parent_frame, entries):
                 entry.grid(row=row_index + 6, column=col_index - 10, padx=5, pady=5, sticky='nsew')
                 entry.insert(0, '0')
                 entries[label].append(entry)
+
 
 # Title Frame ---------------------------------------------------------------------------------------------
 
@@ -661,10 +713,8 @@ name_entry = ctk.CTkEntry(master=f_name, textvariable=device_name, placeholder_t
 name_entry.grid(row=1, column=0, padx=25, pady=5)
 name_entry.bind("<Key>", restrict_space_key)
 
-
 for widget in f_name.winfo_children():
     widget.grid_configure(padx=20, pady=5)
-
 
 # Controls Frame (Functions and Widgets) -------------------------------------------------------------------------------------
 
@@ -675,12 +725,10 @@ f_controls.grid(row=3, column=0, sticky='ew', padx=10, pady=10)
 label_2 = ctk.CTkLabel(master=f_controls, text='Controls', font=('Bahnschrift SemiBold', 16), text_color="#302c2c")
 label_2.grid(row=0, column=1, sticky='new', pady=5)
 
-
 # Number display
 sides_entry = ctk.CTkLabel(f_controls, textvariable=number_of_controls, font=('Bahnschrift SemiBold', 27),
                            text_color="#302c2c")
 sides_entry.grid(row=1, column=1, padx=0, pady=(0, 10), sticky='new')
-
 
 # Down button
 button_down = ctk.CTkButton(
@@ -702,15 +750,15 @@ button_up = ctk.CTkButton(
         confirm_sides(number_of_controls.get()),
         indicate_limit(sides_entry) if number_of_controls.get() == 20 else None
     ],
-    fg_color='transparent', hover_color=D_teal, font=('Bahnschrift SemiBold', 35),text_color=L_teal
+    fg_color='transparent', hover_color=D_teal, font=('Bahnschrift SemiBold', 35), text_color=L_teal
 )
 button_up.grid(row=1, column=2, sticky='nsw')
-
 
 # Toggle switch
 check_var = ctk.StringVar(value="off")  # Set checkbox as off
 test_toggle = ctk.CTkSwitch(f_controls, text="Active Tracking", font=('Bahnschrift SemiBold', 10), height=25, width=60,
-                            fg_color=L_teal, text_color="#302c2c", switch_width=100,switch_height=30, progress_color="#6ac4dc")
+                            fg_color=L_teal, text_color="#302c2c", switch_width=100, switch_height=30,
+                            progress_color="#6ac4dc")
 test_toggle.grid(row=3, column=1, pady=(5, 0))
 
 
@@ -734,7 +782,6 @@ def run_toggle_dp_sensor():
     print("pass to async")
 
 
-
 test_toggle.configure(command=run_toggle_dp_sensor)
 
 for widget in f_controls.winfo_children():
@@ -746,7 +793,8 @@ f_face.grid(row=1, column=1, rowspan=4, sticky='new', padx=10, pady=10)
 
 entries = {label: [] for label in ['Note', 'X', 'Y', 'Z']}
 
-tabview = CTkTabview(f_face, segmented_button_fg_color=L_teal, segmented_button_unselected_color=L_teal, fg_color=D_gray)
+tabview = CTkTabview(f_face, segmented_button_fg_color=L_teal, segmented_button_unselected_color=L_teal,
+                     fg_color=D_gray)
 tabview.grid(row=0, column=1, rowspan=4, sticky='new', padx=10, pady=10)
 
 # Create three tabs
@@ -778,11 +826,10 @@ button_import.grid(row=0, column=1, padx=10, pady=5)
 
 from tkinter import messagebox
 
-
 reset_button = ctk.CTkButton(
     master=f_file,
     text="⭮",
-    command= lambda: reset_entries(),  # Link to the reset_entries function
+    command=lambda: reset_entries(),  # Link to the reset_entries function
     height=25,
     width=50,
     fg_color="red",
@@ -796,6 +843,7 @@ reset_button.grid(row=0, column=2, padx=5, pady=5)
 # Overall Organization-------------------------------------------------------
 for widget in frame.winfo_children():
     widget.grid_configure(padx=10, pady=5, ipady=10)
+
 
 def update_face_buttons_and_entries(sides, tabs):
     # Iterate over each tab
@@ -819,6 +867,7 @@ def update_face_buttons_and_entries(sides, tabs):
                         entry_list[entry_col_index].configure(state="normal" if col_index < sides else "disabled")
             except IndexError:
                 continue
+
 
 # Main function----------------------------------------------------------------------------------------------------
 def update_interface_on_connection(status):
@@ -911,9 +960,6 @@ entries_mode3 = {label: [] for label in ['Note', 'X', 'Y', 'Z', 'Dot Product']}
 create_face_layout(tab_faces1, entries_mode1)
 create_face_layout(tab_faces2, entries_mode2)
 create_face_layout(tab_faces3, entries_mode3)
-
-
-
 
 # Disable the interface initially
 update_interface_on_connection(False)
