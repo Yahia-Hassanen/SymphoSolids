@@ -10,8 +10,7 @@ Designed for the M5StickCplus1/2, SymphoSolids consisits of three software compo
   
 ### Watch a demo of the configuration and initialization process here!
 
-[![Video Title](https://img.youtube.com/vi/L9C7AJwvAK8/0.jpg)](https://www.youtube.com/watch?v=L9C7AJwvAK8)
-
+video coming soon!
 
 ## First Time Installation Guide
 The easiest way to use SymphoSolids right away is by following the steps below:
@@ -22,10 +21,14 @@ The easiest way to use SymphoSolids right away is by following the steps below:
 
   ## User Guide
   **There are 3 stages before use.**
+  ![alt text](<Untitled drawing.png>)
 
   ### Configuration
+
   1. Using a serial cable connect the M5Stick to laptop/computer.
+
   2. Open up the *M5StickCPlusBLE* file
+
   3. Ensuring the correct COM is chosen, upload the file to the stick pressibg the arrow on the top left corner.
      
 **To Upload:**
@@ -37,8 +40,13 @@ The easiest way to use SymphoSolids right away is by following the steps below:
  ![image](https://github.com/user-attachments/assets/f933e13f-313c-4298-a5fc-768e4a337ea3)
 
   4. Run the SymphoSolidsConfiguration program.
-  5. Using the GUI scan and connect to stick before initilazing the Solid's name, number of sides, face data and note values. For further detail watch the demo video attatched above.
+
+  5. Insert the stick into the desired shape. 
+
+  6. Using the program, scan and connect to stick before initilazing the Solid's name, number of sides, face data and note values. For further detail watch the demo video attatched above.
   Note values are entered in MIDI values. MIDI values range from 0 to 127, where zero is silence and 127 is the highest pitch value of G9. Use the below conversion table adapted from Manaris et al.
+
+  
 Here is the completed table with the rest of the notes included:
 
 
