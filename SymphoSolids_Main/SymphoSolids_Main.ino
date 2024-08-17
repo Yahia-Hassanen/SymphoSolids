@@ -10,7 +10,7 @@ Date: Summer 2024
 #include <hardware/BLEMIDI_ESP32_NimBLE.h>
 #include <cmath> 
 
-#include "test_2.h"
+#include "Demo.h" // MODIFY FILE NAME HERE!
 
 #define MIDI_CHANNEL_NO 1
 #define MIDI_DEVICE_NAME DEVICE_NAME
