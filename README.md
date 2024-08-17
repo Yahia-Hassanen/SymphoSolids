@@ -10,7 +10,8 @@ Designed for the M5StickCplus1/2, SymphoSolids consisits of three software compo
   
 ### Watch a demo of the configuration and initialization process here!
 
-video coming soon!
+[![Video Title](https://img.youtube.com/vi/L9C7AJwvAK8/0.jpg)](https://www.youtube.com/watch?v=L9C7AJwvAK8)
+
 
 ## First Time Installation Guide
 The easiest way to use SymphoSolids right away is by following the steps below:
