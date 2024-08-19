@@ -18,9 +18,8 @@ from bleak.exc import BleakError, BleakDeviceNotFoundError
 WRITE_CHARACTERISTIC_UUID = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
 NOTIFICATION_CHARACTERISTIC_UUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
 
-# Colot Lib
+# Color Lib
 
-green = '#aaf255'
 L_grey = '#f2f2f7'  # root bg
 D_gray = '#e5e5ea'  # frame_bg
 blue = '#4a26fd'
@@ -40,7 +39,7 @@ root.grid_columnconfigure(0, weight=1)
 root.aspect(1, 1, 1, 1)
 
 root.after(201, lambda: root.iconbitmap(
-    'C:/Users/1yahi/Desktop/Dr Chan Summer 24/Musical instruments/Accessory Code/music.ico'))
+    'C:/Users/1yahi/Desktop/SS/music.ico'))
 
 frame = ctk.CTkFrame(root, fg_color=L_grey)
 frame.grid(row=0, column=0, sticky='nsew')
@@ -342,9 +341,12 @@ def update_entries(face, data):
         for key in ['X', 'Y', 'Z']:
             value = data.get(key, '0')
 
-            entries[key][col_index].configure(text=str(value))
+            entries[key][col_index].configure(text=value)
 
-            # Update the corresponding list with the new value
+            if value is int:
+                str(value)
+            else:
+                pass
             if key == 'X':
                 accel_X[col_index] = value
             elif key == 'Y':
@@ -718,7 +720,7 @@ for widget in f_name.winfo_children():
 
 # Controls Frame (Functions and Widgets) -------------------------------------------------------------------------------------
 
-f_controls = ctk.CTkFrame(master=frame, fg_color="#e5e5ea")
+f_controls = ctk.CTkFrame(master=frame, fg_color=D_gray)
 f_controls.grid(row=3, column=0, sticky='ew', padx=10, pady=10)
 
 # Label
@@ -738,7 +740,7 @@ button_down = ctk.CTkButton(
         confirm_sides(number_of_controls.get()),
         indicate_limit(sides_entry) if number_of_controls.get() == 4 else None
     ],
-    fg_color='transparent', hover_color=D_teal, font=('Bahnschrift SemiBold', 35), text_color=L_teal
+    fg_color='transparent', hover_color="#e5e5ea", font=('Bahnschrift SemiBold', 35), text_color=L_teal
 )
 button_down.grid(row=1, column=0, sticky='nsw')
 
@@ -750,7 +752,7 @@ button_up = ctk.CTkButton(
         confirm_sides(number_of_controls.get()),
         indicate_limit(sides_entry) if number_of_controls.get() == 20 else None
     ],
-    fg_color='transparent', hover_color=D_teal, font=('Bahnschrift SemiBold', 35), text_color=L_teal
+    fg_color='transparent', hover_color="#e5e5ea", font=('Bahnschrift SemiBold', 35), text_color=L_teal
 )
 button_up.grid(row=1, column=2, sticky='nsw')
 
@@ -793,8 +795,9 @@ f_face.grid(row=1, column=1, rowspan=4, sticky='new', padx=10, pady=10)
 
 entries = {label: [] for label in ['Note', 'X', 'Y', 'Z']}
 
-tabview = CTkTabview(f_face, segmented_button_fg_color=L_teal, segmented_button_unselected_color=L_teal,
-                     fg_color=D_gray)
+tabview = CTkTabview(f_face, segmented_button_fg_color='#e5e5ea', segmented_button_unselected_color='#e5e5ea',
+                     fg_color=D_gray, text_color="black", segmented_button_selected_hover_color=D_teal,
+                     segmented_button_unselected_hover_color=L_teal, segmented_button_selected_color=L_teal)
 tabview.grid(row=0, column=1, rowspan=4, sticky='new', padx=10, pady=10)
 
 # Create three tabs
@@ -891,7 +894,7 @@ async def main():
 
 
 async def connect_to_device(address):
-    popup = create_popup("Connecting", green, True)
+    popup = create_popup("Connecting", "green", True)
     global client
     try:
         print(f"Attempting to connect to {address}")
