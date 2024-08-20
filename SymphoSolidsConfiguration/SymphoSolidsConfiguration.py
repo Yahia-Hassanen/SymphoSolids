@@ -13,6 +13,8 @@ import itertools
 import threading
 from bleak import BleakClient, BleakScanner
 from bleak.exc import BleakError, BleakDeviceNotFoundError
+from tkinter import messagebox
+
 
 # BLE Definitions ------------------------------------------------------------------------------------------------
 WRITE_CHARACTERISTIC_UUID = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
@@ -203,7 +205,6 @@ def confirm_sides(sides):
         root.after_cancel(debounce_timer)
     debounce_timer = root.after(3000, lambda: [update_face_buttons_and_entries(sides, tabs)])
 
-
 def parse_accelerometer_data(data):
     try:
         # Parse and round the accelerometer data
@@ -222,8 +223,9 @@ def parse_accelerometer_data(data):
             print("Sent to angle calc")
             angle_between(parsed_data)
         else:
-            print(f"Parsed data: X={parsed_data['X']}, Y={parsed_data['Y']}, Z={parsed_data['Z']}")
-            print_to_console(f"Parsed data: X={parsed_data['X']}, Y={parsed_data['Y']}, Z={parsed_data['Z']}")
+            # Convert float values to strings before concatenating
+            print(f"Parsed data: X={str(parsed_data['X'])}, Y={str(parsed_data['Y'])}, Z={str(parsed_data['Z'])}")
+            print_to_console(f"Parsed data: X={str(parsed_data['X'])}, Y={str(parsed_data['Y'])}, Z={str(parsed_data['Z'])}")
             angle_between(parsed_data)
             # Proceed with duplicate check and potentially update the entries
             duplicate_alert(parsed_data)
@@ -232,7 +234,6 @@ def parse_accelerometer_data(data):
         print(f"Failed to parse data: {e}")
         print_to_console(f"Failed to parse data: {e}")
         return {}
-
 
 def angle_between(current_xyz):
     global angles
@@ -271,23 +272,22 @@ def duplicate_alert(current_xyz):
     smallest_angle_index = angles.index(smallest_angle)
 
     # Check if the smallest angle is within the threshold to be considered similar
-    if 0 <= smallest_angle <= 0.09 :
+    if 0 <= smallest_angle <= 0.09:
         print(f"Incoming data: {current_xyz} is similar to Face: {smallest_angle_index + 1}")
         msg = f"Face '{smallest_angle_index + 1}' has already been registered with similar data. Are you sure this is a new face?"
         resp = messagebox.askyesno("Data Already Recorded", msg)
 
         # If the user chooses to update, call update_entries
         if resp:
-            print(f"Updating Face '{last_selected_face + 1}' with new data...")
-            update_entries(faces[smallest_angle_index], current_xyz)
+            print(f"Updating Face '{str(last_selected_face)}' with new data...")
+            update_entries(last_selected_face, current_xyz)
         else:
             print(f"Face '{smallest_angle_index + 1}' already registered, skipping update.")
             return  # Skip the update if the user rejects
     else:
         # If no faces are similar, update the last selected face with the new data
-        print(f"No similar faces found, updating Face '{last_selected_face}' with new data...")
+        print(f"No similar faces found, updating Face '{str(last_selected_face)}' with new data...")
         update_entries(last_selected_face, current_xyz)
-
 
 async def notification_handler(sender, data):
     global record_message_sent, current_xyz
@@ -334,19 +334,18 @@ def highlight_closest():
         asyncio.create_task(send_data(client, "Record"))
         print("Data sent")
 
-
 def update_entries(face, data):
     col_index = faces.index(face)
     for entries in [entries_mode1, entries_mode2, entries_mode3]:
         for key in ['X', 'Y', 'Z']:
             value = data.get(key, '0')
 
+            # Ensure the value is a string
+            value = str(value)  # This forces the value to be a string
+
             entries[key][col_index].configure(text=value)
 
-            if value is int:
-                str(value)
-            else:
-                pass
+            # Update accel dictionaries with string values
             if key == 'X':
                 accel_X[col_index] = value
             elif key == 'Y':
@@ -827,7 +826,6 @@ button_import = ctk.CTkButton(master=f_file, height=25, width=280, text="Import 
                               hover_color=D_teal, text_color="#302c2c", command=import_file)
 button_import.grid(row=0, column=1, padx=10, pady=5)
 
-from tkinter import messagebox
 
 reset_button = ctk.CTkButton(
     master=f_file,
@@ -892,41 +890,59 @@ def update_interface_on_connection(status):
 async def main():
     await scan_devices()
 
-
 async def connect_to_device(address):
-    popup = create_popup("Connecting", "green", True)
+    popup = create_popup("Connecting", "#24cc44", True)
     global client
     try:
         print(f"Attempting to connect to {address}")
         print_to_console(f"Attempting to connect to {address}")
+
+        # Create the BLE client and attempt connection
         client = BleakClient(address)
         await client.connect()
         print(f"Connected to {address}")
+        print_to_console(f"Connected to {address}")
 
         # Enable the interface on successful connection
         update_interface_on_connection(True)
 
         # Update the button to show connected status
-        button_connect.configure(text="Connected", fg_color='#24cc44', command=connect_to_device)
+        button_connect.configure(text="Connected", fg_color="#24cc44", command=lambda: disconnect_device())
 
+        # Confirm sides based on controls
         confirm_sides(number_of_controls.get())
+
+        # Close the connecting popup
         popup.destroy()
 
-        services = await client.get_services()
+        # Monitor for unexpected disconnection
+        async def monitor_connection():
+            while client.is_connected:
+                await asyncio.sleep(0.5)
+            # If disconnected, reset button and interface
+            print("Device disconnected unexpectedly.")
+            print_to_console("Device disconnected unexpectedly.")
+            button_connect.configure(text="Connect", fg_color=L_teal, hover_color='#24cc44', command=confirm_selection)
+            update_interface_on_connection(False)
 
+        # Start monitoring the connection in the background
+        asyncio.create_task(monitor_connection())
+
+        # Retrieve and log available services and characteristics
+        services = await client.get_services()
         for service in services:
             print(f"Service: {service.uuid}")
             print_to_console(f"Service: {service.uuid}")
-
             for characteristic in service.characteristics:
                 print(f"  Characteristic: {characteristic.uuid}")
                 print_to_console(f"  Characteristic: {characteristic.uuid}")
 
+        # Start notifications on the characteristic
         await client.start_notify(NOTIFICATION_CHARACTERISTIC_UUID, notification_handler)
-
         print("Press 'Esc' to exit.")
         print_to_console("Press 'Esc' to exit.")
 
+        # Listen for 'Esc' key to exit
         while True:
             if keyboard.is_pressed('esc'):
                 print("Exiting...")
@@ -934,17 +950,11 @@ async def connect_to_device(address):
                 break
             await asyncio.sleep(0.1)
 
-        await client.stop_notify(NOTIFICATION_CHARACTERISTIC_UUID)
-        await client.disconnect()
-        print("Disconnected")
-        print_to_console("Disconnected")
-
-        # Reset the button back to original state
-        button_connect.configure(text="Connect", command=confirm_selection, fg_color='#302c2c', hover_color='#24cc44')
-
-        # Disable the interface after disconnection
-        update_interface_on_connection(False)
-
+    except Exception as e:
+        print(f"Error during connection or operation: {e}")
+        print_to_console(f"Error during connection or operation: {e}")
+        if popup.winfo_exists():
+            popup.destroy()
 
     except BleakDeviceNotFoundError:
         print(f"Device with address {address} was not found. Ensure the device is on and in range.")
@@ -954,6 +964,22 @@ async def connect_to_device(address):
     except Exception as e:
         print(f"Failed to connect to {address}: {e}")
         print_to_console(f"Failed to connect to {address}: {e}")
+
+    finally:
+        # Always attempt to clean up the connection
+        if client.is_connected:
+            await client.stop_notify(NOTIFICATION_CHARACTERISTIC_UUID)
+            await client.disconnect()
+            print("Disconnected")
+            print_to_console("Disconnected")
+
+        # Reset the button back to the original state
+        button_connect.configure(text="Connect", command=confirm_selection, fg_color=L_teal, hover_color="#24cc44")
+
+        # Disable the interface after disconnection
+        update_interface_on_connection(False)
+
+
 
 
 entries_mode1 = {label: [] for label in ['Note', 'X', 'Y', 'Z', 'Dot Product']}
