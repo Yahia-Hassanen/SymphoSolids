@@ -10,7 +10,7 @@ Date: Summer 2024
 #include <hardware/BLEMIDI_ESP32_NimBLE.h>
 #include <cmath> 
 
-#include "Demo.h" // MODIFY FILE NAME HERE!
+#include "Dice.h" // MODIFY FILE NAME HERE!
 
 #define MIDI_CHANNEL_NO 1
 #define MIDI_DEVICE_NAME DEVICE_NAME
@@ -46,6 +46,7 @@ void OnNoteOff(byte channel, byte note, byte velocity) {}
 // Updated musical modes
 void playMusicalMode(int mode) {
     StickCP2.Lcd.fillScreen(BLACK);
+    int previousDelayValue = delayValue; // Initialize to track delay changes
     while (true) {
         StickCP2.Imu.getAccelData(&accX, &accY, &accZ);
         StickCP2.Lcd.fillScreen(BLACK);
@@ -91,6 +92,14 @@ void playMusicalMode(int mode) {
 
         StickCP2.Lcd.setTextColor(TFT_WHITE);
 
+        if (delayValue != previousDelayValue) {
+            StickCP2.Lcd.setCursor(12, 30);
+            StickCP2.Lcd.setTextColor(WHITE);
+            StickCP2.Lcd.print("DV: ");
+            StickCP2.Lcd.print(delayValue);
+            previousDelayValue = delayValue; // Update the previous value
+        }
+
         if (note != 0) {
             MIDI.sendNoteOn(note, 100, MIDI_CHANNEL_NO);
             delay(delayValue);
@@ -102,11 +111,6 @@ void playMusicalMode(int mode) {
             displayMenu();
             break;
         }
-
-        StickCP2.Lcd.setCursor(12, 30);
-        StickCP2.Lcd.setTextColor(WHITE);
-        StickCP2.Lcd.print("DV: ");
-        StickCP2.Lcd.print(delayValue);
 
         if (StickCP2.BtnA.wasPressed()) {
             delayValue += 50;
